@@ -90,13 +90,13 @@ class Fuzzgan:
                 data_point += 1
                 _ , second_cls = np.argsort(-predictions)[:2]
                 second_cls_confidence = predictions[second_cls]
-                # if second_cls_confidence:
-                if True:
+                if second_cls_confidence:
+                # if True:
                     for stylemix_cls, cls_confidence in enumerate(predictions):
                         # found mutation below distance_limit
                         found_optimal = False
-                        # if cls_confidence:
-                        if True:
+                        if cls_confidence:
+                        # if True:
                             state["params"]["mixclass_idx"] = stylemix_cls
                             self.stylemix_seed = 0
                             while not found_optimal and self.stylemix_seed < self.stylemix_seed_limit:
@@ -116,10 +116,10 @@ class Fuzzgan:
 
                                     m_accepted, confidence , m_predictions = Predictor().predict_datapoint(m_image_array, label)
                                     m_class = np.argsort(-m_predictions)[:1]
-                                    m_digit_info["accepted"] = m_accepted
-                                    m_digit_info["predicted-class"] = m_class
-                                    m_digit_info["exp-confidence"] = confidence
-                                    m_digit_info["predictions"] = m_predictions
+                                    m_digit_info["accepted"] = m_accepted.tolist()
+                                    m_digit_info["predicted-class"] = m_class.tolist()
+                                    m_digit_info["exp-confidence"] = float(confidence)
+                                    m_digit_info["predictions"] = m_predictions.tolist()
 
                                     distance = get_distance(np.array(image), np.array(m_image))
 
@@ -137,7 +137,7 @@ class Fuzzgan:
                                             optimal_name = f"/{int(distance)}-{self.stylemix_seed}-{stylemix_cls}-{idx}-{m_class}"
                                             os.makedirs(optimal_path, exist_ok=True)
                                             with open(f"{optimal_path}/{optimal_name}.json", 'w') as f:
-                                                (json.dump(digit_info, f, sort_keys=True, indent=4))
+                                                (json.dump(m_digit_info, f, sort_keys=True, indent=4))
                                             m_image.save(f"{optimal_path}/{optimal_name}.png")
                                             break_loop = True
                                             print("Found optimal")
@@ -147,7 +147,7 @@ class Fuzzgan:
                                             non_optimal_name = f"/{int(distance)}-{self.stylemix_seed}-{stylemix_cls}-{stylemix_cls}-{idx}-{m_class}"
                                             os.makedirs(non_optimal_path, exist_ok=True)
                                             with open(f"{non_optimal_path}/{non_optimal_name}.json", 'w') as f:
-                                                (json.dump(digit_info, f, sort_keys=True, indent=4))
+                                                (json.dump(m_digit_info, f, sort_keys=True, indent=4))
                                             m_image.save(f"{non_optimal_path}/{non_optimal_name}.png")
                                 self.stylemix_seed += 1
             self.w0_seed += step_size
