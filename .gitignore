@@ -157,3 +157,6 @@ fabric.properties
 
 checkpoints
 mnist/runs
+mnist/dataset
+mnist/search
+mnist/try

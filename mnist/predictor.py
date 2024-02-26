@@ -62,3 +62,49 @@ class Predictor:
 
         return prediction1, confidence
 
+
+    @staticmethod
+    def predict_generator(img, label):
+        explabel = (np.expand_dims(label, 0))
+
+        # Convert class vectors to binary class matrices
+        explabel = keras.utils.to_categorical(explabel, num_classes)
+        explabel = np.argmax(explabel.squeeze())
+
+        # Predictions vector
+        predictions = Predictor.model.predict(img)
+
+        prediction1, prediction2 = np.argsort(-predictions[0])[:2]
+
+        # Activation level corresponding to the expected class
+        confidence_expclass = predictions[0][explabel]
+
+        if prediction1 == label:
+            success = True
+            not_class = prediction2
+            not_class_confidence = predictions[0][prediction2]
+        else:
+            success = False
+            not_class = prediction1
+            not_class_confidence = predictions[0][prediction1]
+
+        return success, confidence_expclass, not_class, not_class_confidence
+
+    @staticmethod
+    def predict_datapoint(img, label):
+        explabel = (np.expand_dims(label, 0))
+
+        # Convert class vectors to binary class matrices
+        explabel = keras.utils.to_categorical(explabel, num_classes)
+        explabel = np.argmax(explabel.squeeze())
+
+        # Predictions vector
+        predictions = Predictor.model.predict(img)
+
+        prediction1 = np.argsort(-predictions[0])[:1]
+
+        # Activation level corresponding to the expected class
+        confidence_expclass = predictions[0][explabel]
+
+
+        return prediction1 == label, confidence_expclass, predictions[0]

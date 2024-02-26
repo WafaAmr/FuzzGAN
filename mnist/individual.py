@@ -56,6 +56,7 @@ class Individual:
 
         if self.misclass is None:
             # Calculate fitness function 2
+            # print(f"### Misclass m1: {self.m1.expected_label}->{self.m1.predicted_label} m2: {self.m2.expected_label}->{self.m2.predicted_label}")
             self.misclass = evaluator.evaluate_ff2(self.m1.confidence,
                                                    self.m2.confidence)
 

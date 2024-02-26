@@ -49,15 +49,15 @@ creator.create("Individual", Individual, fitness=creator.FitnessMulti)
 
 
 def generate_digit(seed):
-    print("Generating digit from seed: " + str(seed))
-    state_init = STYLEGAN_INIT
-    state_init['params']['seed'] = seed
-    state = init_images(state_init)
-    seed_image = state['images']['image_orig']
-    label = state['params']['class_idx']
+    # print("Generating digit from seed: " + str(seed))
+    # state_init = STYLEGAN_INIT
+    # state_init['params']['seed'] = seed
+    # state = init_images(state_init)
+    # seed_image = state['images']['image_orig']
+    # label = state['params']['class_idx']
     # --------------------------------------------------
-    # seed_image = x_test[int(seed)]
-    # label = y_test[int(seed)]
+    seed_image = x_test[int(seed)]
+    label = y_test[int(seed)]
     xml_desc = vectorization_tools.vectorize(seed_image)
     return MnistMember(xml_desc, label, seed)
 
@@ -90,6 +90,7 @@ def generate_individual():
         # Choose randomly a file in the original dataset.
         seed = random.choice(starting_seeds)
         Individual.SEEDS.add(seed)
+
     individual = ind_from_seed(seed)
     return individual
 

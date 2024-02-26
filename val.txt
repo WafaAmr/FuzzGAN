@@ -1,0 +1,19 @@
+w0_seeds: [[100, 1.0]]
+stylemix_idx: []
+stylemix_seed: 0
+trunc_psi: 1.0
+trunc_cutoff: 8
+random_seed: 0
+noise_mode: const
+force_fp32: False
+layer_name: None
+sel_channels: 3
+base_channel: 0
+img_scale_db: 0.0
+img_normalize: False
+fft_show: False
+fft_all: True
+fft_range_db: 50
+fft_beta: 8
+input_transform: [[1.0, 0.0, 0.0], [-0.0, 1.0, 0.0], [0, 0, 1]]
+untransform: False
