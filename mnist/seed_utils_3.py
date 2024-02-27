@@ -55,7 +55,7 @@ class Fuzzgan:
         return state, info
 
     def generate_dataset(self):
-        self.w0_seed = 2
+        self.w0_seed = 52982 # 52987
         self.stylemix_seed = 0
 
         data_point = 0
@@ -124,7 +124,7 @@ class Fuzzgan:
                                     distance = get_distance(np.array(image), np.array(m_image))
 
                                     if not m_accepted and 0 < distance < self.distance_limit:
-                                        path = f"mnist/search/{self.w0_seed}/"
+                                        path = f"mnist/search2/{self.w0_seed}/"
                                         seed_name = f"0-{second_cls}"
                                         os.makedirs(path, exist_ok=True)
                                         image.save(f"{path}/{seed_name}.png")

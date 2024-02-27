@@ -8,7 +8,7 @@ INIT_PKL = 'stylegan2_mnist_32x32-con'
 
 CACHE_DIR = 'checkpoints'
 
-SEARCH_LIMIT = 10000
+SEARCH_LIMIT = 1000000
 
 # DRAGGAN_INIT = {
 #     "images": {

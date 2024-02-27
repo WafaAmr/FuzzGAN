@@ -160,4 +160,4 @@ mnist/runs
 mnist/dataset
 mnist/search
 mnist/try
-mnist/search_wrong_json
+mnist/search*
