@@ -55,7 +55,7 @@ class Fuzzgan:
         return state, info
 
     def generate_dataset(self):
-        self.w0_seed = 52895 # 52900
+        self.w0_seed = 205915 # 52895 # 52900
         self.stylemix_seed = 0
 
         data_point = 0
