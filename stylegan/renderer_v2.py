@@ -224,10 +224,11 @@ class Renderer:
     def _render_impl(self, res,
         pkl             = None,
         w0_seeds        = [[0, 1]],
+        w_load          = None,
         class_idx       = None,
         mixclass_idx    = None,
         stylemix_idx    = [],
-        stylemix_seed   = 0,
+        stylemix_seed   = None,
         trunc_psi       = 1,
         trunc_cutoff    = 0,
         random_seed     = 0,
@@ -264,50 +265,46 @@ class Renderer:
                 res.error = CapturedException()
             G.synthesis.input.transform.copy_(torch.from_numpy(m))
 
-        # Generate random latents.
-        # print(f"w0_seeds:{w0_seeds}")
-        all_seeds = [seed for seed, _weight in w0_seeds] + [stylemix_seed]
-        print(f"w0_seed: {w0_seeds[0][0]}, mixclass_idx:{mixclass_idx} , stylemix_seed:{stylemix_seed}, stylemix_idx:{stylemix_idx}")
-        # print(f"all_seeds:{all_seeds}")
-        # all_seeds = list(set(all_seeds))
-        all_zs = np.zeros([len(all_seeds), G.z_dim], dtype=np.float32)
+        if stylemix_seed is not None:
+            all_seeds = [seed for seed, _weight in w0_seeds] + [stylemix_seed]
+        else:
+            all_seeds = [seed for seed, _weight in w0_seeds]
 
+        print(f"class: {class_idx}, w0_seed: {w0_seeds[0][0]}, mixclass_idx:{mixclass_idx} , stylemix_seed:{stylemix_seed}, stylemix_idx:{stylemix_idx}")
+
+        all_zs = np.zeros([len(all_seeds), G.z_dim], dtype=np.float32)
         all_cs = np.zeros([len(all_seeds), G.c_dim], dtype=np.float32)
-        # print(f"all_seeds:{all_seeds}")
+
         for idx, seed in enumerate(all_seeds):
-            rnd = np.random.RandomState(seed)
-            all_zs[idx] = rnd.randn(G.z_dim)
             if G.c_dim > 0:
-                if class_idx and idx < len(w0_seeds):
-                    label = all_cs[idx]
-                    # print(f"label:{label}, type:{type(label)}")
-                    # print(f"class_idx:{class_idx}")
-                    label[class_idx] = 1
-                    # print(f"label:{label}")
-                    all_cs[idx] = label
-                elif mixclass_idx and idx >= len(w0_seeds):
-                    label = all_cs[idx]
-                    label[mixclass_idx] = 1
-                    all_cs[idx] = label
+                rnd = np.random.RandomState(seed)
+                if stylemix_seed is not None:
+                    if mixclass_idx is not None:
+                        if seed == stylemix_seed:
+                            all_cs[idx][mixclass_idx] = 1
+                elif class_idx is not None:
+                    all_cs[idx][class_idx] = 1
                 else:
                     all_cs[idx, rnd.randint(G.c_dim)] = 1
-                # all_cs[idx, rnd.randint(G.c_dim)] = 1
-        # print(f"all_cs:{all_cs}")
+            all_zs[idx] = rnd.randn(G.z_dim)
+
 
         # Run mapping network.
         w_avg = G.mapping.w_avg
         all_zs = self.to_device(torch.from_numpy(all_zs))
         all_cs = self.to_device(torch.from_numpy(all_cs))
-        # label = torch.zeros([1, 10], device=self._device)
-        # label[:, 5] = 1
-        # all_ws = G.mapping(z=all_zs, c=label, truncation_psi=trunc_psi, truncation_cutoff=trunc_cutoff) - w_avg
         all_ws = G.mapping(z=all_zs, c=all_cs, truncation_psi=trunc_psi, truncation_cutoff=trunc_cutoff) - w_avg
         all_ws = dict(zip(all_seeds, all_ws))
+
+        if w_load:
+            for seed, _ in all_ws.items():
+                if seed in w0_seeds:
+                    all_ws[seed] = w_load
 
         # Calculate final W.
         w = torch.stack([all_ws[seed] * weight for seed, weight in w0_seeds]).sum(dim=0, keepdim=True)
         stylemix_idx = [idx for idx in stylemix_idx if 0 <= idx < G.num_ws]
-        if len(stylemix_idx) > 0:
+        if stylemix_seed is not None and len(stylemix_idx) > 0:
             w[:, stylemix_idx] = all_ws[stylemix_seed][np.newaxis, stylemix_idx]
         w += w_avg
 
@@ -366,6 +363,8 @@ class Renderer:
             fft = (fft / fft.mean()).log10() * 10 # dB
             fft = self._apply_cmap((fft / fft_range_db + 1) / 2)
             res.image = torch.cat([img.expand_as(fft), fft], dim=1)
+
+        res.w = w.detach().cpu().numpy()
 
     @staticmethod
     def run_synthesis_net(net, *args, capture_layer=None, **kwargs): # => out, layers
