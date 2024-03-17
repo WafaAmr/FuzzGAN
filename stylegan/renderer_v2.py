@@ -278,10 +278,8 @@ class Renderer:
         for idx, seed in enumerate(all_seeds):
             if G.c_dim > 0:
                 rnd = np.random.RandomState(seed)
-                if stylemix_seed is not None:
-                    if mixclass_idx is not None:
-                        if seed == stylemix_seed:
-                            all_cs[idx][mixclass_idx] = 1
+                if stylemix_seed is not None and mixclass_idx is not None and seed == stylemix_seed:
+                    all_cs[idx][mixclass_idx] = 1
                 elif class_idx is not None:
                     all_cs[idx][class_idx] = 1
                 else:
