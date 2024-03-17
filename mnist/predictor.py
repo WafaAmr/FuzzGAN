@@ -68,11 +68,11 @@ class Predictor:
         explabel = (np.expand_dims(label, 0))
 
         # Convert class vectors to binary class matrices
-        explabel = keras.utils.to_categorical(explabel, num_classes)
+        explabel = keras.utils.to_categorical(explabel, num_classes, )
         explabel = np.argmax(explabel.squeeze())
 
         # Predictions vector
-        predictions = Predictor.model.predict(img)
+        predictions = Predictor.model.predict(img, verbose=0)
 
         prediction1, prediction2 = np.argsort(-predictions[0])[:2]
 
@@ -99,7 +99,7 @@ class Predictor:
         explabel = np.argmax(explabel.squeeze())
 
         # Predictions vector
-        predictions = Predictor.model.predict(img)
+        predictions = Predictor.model.predict(img, verbose=0)
 
         prediction1 = np.argsort(-predictions[0])[:1]
 

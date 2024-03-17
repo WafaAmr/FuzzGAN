@@ -205,7 +205,7 @@ class Renderer:
 
     def init_network(self, res,
         pkl             = None,
-        w0_seed         = 0,
+        w0_seed         = [[0, 1]],
         class_idx       = None,
         w_load          = None,
         w_plus          = True,

@@ -161,4 +161,5 @@ mnist/dataset
 mnist/search
 mnist/try
 mnist/search*
-mnist/heatmaps
+mnist/heatmap*
+mnist/eval/*

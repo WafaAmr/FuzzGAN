@@ -62,12 +62,9 @@ def apply_mutoperator2(svg_path, extent):
     return path
 
 
-def mutate(svg_desc, operator_name, mutation_extent):
-    root = ET.fromstring(svg_desc)
-    svg_path = root.find(NAMESPACE + 'path').get('d')
-    mutant_vector = svg_path
+def mutate(state, operator_name, mutation_extent):
     if operator_name == 1:
-        mutant_vector = apply_mutoperator1(svg_path, mutation_extent)
+        mutant_vector = apply_mutoperator1(state, mutation_extent)
     elif operator_name == 2:
         mutant_vector = apply_mutoperator2(svg_path, mutation_extent)
     return mutant_vector

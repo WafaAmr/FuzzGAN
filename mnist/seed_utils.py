@@ -7,7 +7,7 @@ from PIL import Image
 
 import dnnlib
 from stylegan.renderer import Renderer
-from config import CACHE_DIR, STYLEGAN_INIT, POPSIZE, SEARCH_FACTOR
+from config import CACHE_DIR, DRAGGAN_INIT, POPSIZE
 from predictor import Predictor
 import pickle
 
@@ -44,8 +44,10 @@ def init_images(global_state):
     #                                     is_drag=False,
     #                                     to_pil=True)
 
-    init_image = state['generator_params'].image
-    state['images']['image_orig'] = init_image
+    # init_image = state['generator_params'].image
+    w = state['generator_params'].w
+    print(w)
+    # state['images']['image_orig'] = init_image
     # state['images']['image_raw'] = init_image
     # state['images']['image_show'] = Image.fromarray(
     #     np.array(init_image))
@@ -55,12 +57,12 @@ def init_images(global_state):
 
 def generate_dataset():
     dataset = []
-    search_population = POPSIZE * SEARCH_FACTOR
+    search_population = POPSIZE * 100
     i = 0
     j = 0
 
     while j < 1000:
-        state_init = STYLEGAN_INIT
+        state_init = DRAGGAN_INIT
         state_init["params"]["seed"] = i
         digit =init_images(state_init)
         expected_label = digit["params"]["class_idx"]
@@ -71,7 +73,7 @@ def generate_dataset():
         accepted, confidence, not_class, not_class_confidence = Predictor().predict_generator(image_array, expected_label)
         if accepted and not_class_confidence != 0.0:
             j += 1
-            image.save(f"dataset/pci-0.7/true/{i}-{confidence}-{not_class}-{not_class_confidence}.png")
+            # image.save(f"dataset/pci-0.7/true/{i}-{confidence}-{not_class}-{not_class_confidence}.png")
             if 'predictor' not in digit:
                 digit['predictor'] = {}
             digit["predictor"]["confidence"] = confidence
@@ -79,7 +81,8 @@ def generate_dataset():
             digit["predictor"]["not_class_confidence"] = not_class_confidence
             dataset.append(digit)
         elif not accepted:
-            image.save(f"dataset/pci-0.7/false/{i}-{not_class}-{not_class_confidence}-{confidence}.png")
+            pass
+            # image.save(f"dataset/pci-0.7/false/{i}-{not_class}-{not_class_confidence}-{confidence}.png")
         i += 1
         print(f"Generated {i} digits")
     dataset.sort(key=lambda digit: digit["predictor"]["confidence"], reverse=True)

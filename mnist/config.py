@@ -8,7 +8,10 @@ INIT_PKL = 'stylegan2_mnist_32x32-con'
 
 CACHE_DIR = 'checkpoints'
 
-SEARCH_LIMIT = 100000000
+SEARCH_LIMIT = 100
+SSIM_THRESHOLD = 0.95
+L2_RANGE = 0.2
+STYLEMIX_SEED_LIMIT = 500
 
 # DRAGGAN_INIT = {
 #     "images": {
@@ -46,27 +49,18 @@ SEARCH_LIMIT = 100000000
 #     'pretrained_weight': INIT_PKL
 # }
 STYLEGAN_INIT = {
-    "images": {
-        # image_orig: the original image, change with seed/model is changed
-        # image_raw: image with mask and points, change durning optimization
-        # image_show: image showed on screen
-    },
-    "temporal_params": {
-        # stop
-    },
-    'mask':
-    None,  # mask for visualization, 1 for editing and 0 for unchange
-    'last_mask': None,  # last edited mask
-    'show_mask': True,  # add button
     "generator_params": dnnlib.EasyDict(),
     "params": {
-        "w0_seeds": [[0, 1.0]],
-        "class_idx": 5,
-        "mixclass_idx": 0,
+        "w0_seeds": [[1, 1]],
+        "w_load": None,
+        "class_idx": None,
+        "mixclass_idx": None,
         "stylemix_idx": [], # [1, 2, 3, 4, 5, 6, 7]
-        "stylemix_seed": 0,
-        "trunc_psi": 1.0,
-        "trunc_cutoff": 8,
+        "patch_idxs": None,
+        "stylemix_seed": None,
+        # "trunc_psi": 0.7,
+        "trunc_psi": 1,
+        "trunc_cutoff": None,
         "random_seed": 0,
         "noise_mode": 'const',
         "force_fp32": False,
@@ -76,19 +70,11 @@ STYLEGAN_INIT = {
         "img_scale_db": 0.0,
         "img_normalize": True,
         "to_pil": True,
-        "fft_show": False,
-        "fft_all": True,
-        "fft_range_db": 50,
-        "fft_beta": 8,
         "untransform": False,
     },
     "device": DEVICE,
     "draw_interval": 1,
     "renderer": Renderer(),
-    "points": {},
-    "curr_point": None,
-    "curr_type_point": "start",
-    'editing_state': 'add_points',
     'pretrained_weight': INIT_PKL
 }
 
@@ -137,7 +123,7 @@ INITIALPOP = 'random'
 
 GENERATE_ONE_ONLY = False
 
-MODEL2 = 'mnist/models/cnnClassifier_lowLR.h5'
+# MODEL = 'mnist/models/cnnClassifier_lowLR.h5'
 MODEL = 'mnist/models/cnnClassifier.h5'
 #MODEL = "models/regular3"
 #MODEL = 'models/cnnClassifier_001.h5'
