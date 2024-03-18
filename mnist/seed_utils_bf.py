@@ -2,33 +2,29 @@ import os
 import os.path as osp
 import copy
 import json
-import shutil
-
-
-import gradio as gr
 import numpy as np
 from PIL import Image
-
-import dnnlib
 from stylegan.renderer_v2 import Renderer
-from config import CACHE_DIR, STYLEGAN_INIT, SEARCH_LIMIT, STYLEMIX_SEED_LIMIT
+from config import CACHE_DIR, STYLEGAN_INIT, SEARCH_LIMIT, STYLEMIX_SEED_LIMIT, SSIM_THRESHOLD
 from predictor import Predictor
+from utils import validate_mutation
 import pickle
-from utils import get_distance, validate_mutation
+import dnnlib
+from multiprocessing import Process, set_start_method
 
-import threading
 class Fuzzgan:
 
-    def __init__(self, w0_seed=0, stylemix_seed=0, threads=None):
+    def __init__(self, w0_seed=0, stylemix_seed=0, search_limit=SEARCH_LIMIT , process_count=None):
         self.state = STYLEGAN_INIT
         self.mix_state = None
         self.dataset = []
-        self.search_limit = SEARCH_LIMIT
-        # self.w0_seed = w0_seed
+        self.search_limit = search_limit
+        self.w0_seed = w0_seed
         # self.stylemix_seed = stylemix_seed
         self.stylemix_seed_limit = STYLEMIX_SEED_LIMIT
         self.layers = None
-        self.threads = threads
+        self.process_count = process_count
+        self.state['renderer'] = Renderer()
 
     def generate_seed(self, state=None):
         if state is None:
@@ -46,9 +42,6 @@ class Fuzzgan:
             to_pil = state['params']['to_pil'],
         )
 
-        init_image = state['generator_params'].image
-        state['images']['image_orig'] = init_image
-
         self.layers = [[x] for x in range(state['generator_params'].num_ws-1, -1, -1)]
 
         info =  copy.deepcopy(state['params'])
@@ -56,18 +49,16 @@ class Fuzzgan:
         return state, info
 
     def generate_dataset(self):
-        self.w0_seed = 1
-        digit_class = 0
-        root = f"mnist/eval/HQ/{digit_class}/"
+        digit_class = 5
+        root = f"mnist/eval/LQ/{digit_class}/"
 
         data_point = 0
-        if self.threads:
-            step_size =  self.threads
+        if self.process_count:
+            step_size =  self.process_count
         else:
             step_size = 1
 
         while data_point < self.search_limit:
-        # while data_point < 10:
             state = self.state
 
             state["params"]["class_idx"] = digit_class
@@ -80,7 +71,7 @@ class Fuzzgan:
 
 
             label = digit["params"]["class_idx"]
-            image = digit["images"]["image_orig"]
+            image = digit['generator_params'].image
             image = image.crop((2, 2, image.width - 2, image.height - 2))
             # os.makedirs(f'{root}seed/', exist_ok=True)
             # image.save(f"{root}seed/{self.w0_seed}.png")
@@ -102,10 +93,10 @@ class Fuzzgan:
                     data_point += 1
                     for stylemix_cls, cls_confidence in enumerate(predictions):
                         if stylemix_cls != label and cls_confidence:
-                        # if cls_confidence:
                             # found mutation below threshold
                             found_mutation = False
                             tried_all_layers = False
+                            best_found = {}
 
                             state["params"]["mixclass_idx"] = stylemix_cls
                             self.stylemix_seed = 0
@@ -117,13 +108,10 @@ class Fuzzgan:
                                 state["params"]["stylemix_seed"] = self.stylemix_seed
 
                                 for idx, layer in enumerate(self.layers):
-                                    if idx == len(self.layers) - 1 and found_mutation:
-                                        tried_all_layers = True
-                                        break
                                     state["params"]["stylemix_idx"] = layer
 
                                     m_digit, m_digit_info = self.generate_seed()
-                                    m_image = m_digit["images"]["image_orig"]
+                                    m_image = m_digit['generator_params'].image
                                     m_image = m_image.crop((2, 2, m_image.width - 2, m_image.height - 2))
                                     m_image_array = np.array(m_image)
 
@@ -132,13 +120,25 @@ class Fuzzgan:
                                         np.reshape(m_image_array, (-1, 28, 28, 1)),
                                         label
                                     )
+
                                     m_class = np.argsort(-m_predictions)[:1]
                                     if not m_accepted and stylemix_cls == m_class:
-                                        valid_mutation, ssi, img_l2, m_img_l2 = validate_mutation(image_array, m_image_array)
-                                        print(f"valid_mutation: {valid_mutation}, ssi: {round(ssi * 100, 1)}, img_l2: {int(img_l2)}, m_img_l2: {int(m_img_l2)}, ratio: {round(img_l2/m_img_l2,3)}")
+
+                                        valid_mutation, ssi, l2_distance, img_l2, m_img_l2 = validate_mutation(image_array, m_image_array)
+
+                                        path = f"{root}{self.w0_seed}/"
+                                        seed_name = f"0-{second_cls}"
+                                        img_path = f"{path}/{seed_name}.png"
+                                        if not os.path.exists(img_path):
+                                            os.makedirs(path, exist_ok=True)
+                                            image.save(img_path)
+
+                                            digit_info["l2_norm"] = img_l2
+                                            with open(f"{path}/{seed_name}.json", 'w') as f:
+                                                (json.dump(digit_info, f, sort_keys=True, indent=4))
+
                                         if valid_mutation:
                                             found_mutation = True
-                                            l2_distance = get_distance(image_array, m_image_array)
 
                                             m_digit_info["accepted"] = m_accepted.tolist()
                                             m_digit_info["predicted-class"] = m_class.tolist()
@@ -148,33 +148,41 @@ class Fuzzgan:
                                             m_digit_info["l2_norm"] = m_img_l2
                                             m_digit_info["l2_distance"] = l2_distance
 
-                                            path = f"{root}{self.w0_seed}/"
-                                            seed_name = f"0-{second_cls}"
-                                            img_path = f"{path}/{seed_name}.png"
-                                            if not os.path.exists(img_path):
-                                                os.makedirs(path, exist_ok=True)
-                                                image.save(img_path)
-
-                                                digit_info["l2_norm"] = img_l2
-                                                with open(f"{path}/{seed_name}.json", 'w') as f:
-                                                    (json.dump(digit_info, f, sort_keys=True, indent=4))
 
                                             m_path = f"{path}/{stylemix_cls}"
-                                            m_name = f"/{int(l2_distance)}-{int(ssi * 100)}-{self.stylemix_seed}-{stylemix_cls}-{idx}-{m_class}"
+                                            m_name = f"/{int(l2_distance)}-{int(ssi * 100)}-{self.stylemix_seed}-{stylemix_cls}-{layer[0]}-{m_class}"
                                             os.makedirs(m_path, exist_ok=True)
                                             with open(f"{m_path}/{m_name}.json", 'w') as f:
                                                 (json.dump(m_digit_info, f, sort_keys=True, indent=4))
                                             m_image.save(f"{m_path}/{m_name}.png")
-
+                                        else:
+                                            if not best_found or ssi < best_found["ssi"]:
+                                                best_found =  copy.deepcopy(m_digit_info)
+                                                best_found["accepted"] = m_accepted.tolist()
+                                                best_found["predicted-class"] = m_class.tolist()
+                                                best_found["exp-confidence"] = float(confidence)
+                                                best_found["predictions"] = m_predictions.tolist()
+                                                best_found["ssi"] = float(ssi)
+                                                best_found["l2_norm"] = m_img_l2
+                                                best_found["l2_distance"] = l2_distance
+                                    if idx == len(self.layers) and found_mutation:
+                                        tried_all_layers = True
+                                        break
                                 self.stylemix_seed += 1
-            # else:
-            #     rejected_path = f"{root}rejected/"
-            #     if not os.path.exists(rejected_path):
-            #         os.makedirs(rejected_path, exist_ok=True)
-            #     # else:
-            #     #     shutil.rmtree(rejected_path)
-            #     #     os.makedirs(rejected_path, exist_ok=True)
-            #     image.save(f"{rejected_path}{self.w0_seed}.png")
+                            if not found_mutation:
+                                l2_distance = best_found["l2_distance"]
+                                ssi = best_found["ssi"]
+                                stylemix_seed = best_found["stylemix_seed"]
+                                stylemix_cls = best_found["mixclass_idx"]
+                                layer = best_found["stylemix_idx"]
+                                m_class = best_found["predicted-class"]
+
+                                m_path = f"{path}/{stylemix_cls}/bf/"
+                                m_name = f"/{int(l2_distance)}-{int(ssi * 100)}-{stylemix_seed}-{stylemix_cls}-{layer[0]}-{m_class}"
+                                os.makedirs(m_path, exist_ok=True)
+                                with open(f"{m_path}/{m_name}.json", 'w') as f:
+                                    (json.dump(best_found, f, sort_keys=True, indent=4))
+                                m_image.save(f"{m_path}/{m_name}.png")
             self.w0_seed += step_size
 
 
@@ -190,12 +198,26 @@ print(os.listdir(CACHE_DIR))
 print('\nValid checkpoint file:')
 print(valid_checkpoints_dict)
 
+def run_fuzzgan(w0_seed, process_count):
+    print(f'Running Fuzzgan with w0_seed: {w0_seed}, process_count: {process_count}')
+    search_limit = SEARCH_LIMIT / process_count
+    Fuzzgan(w0_seed=w0_seed, search_limit=search_limit, process_count=process_count).generate_dataset()
+
 if __name__ == "__main__":
-    fuzzgan = Fuzzgan(threads=4)
-    fuzzgan.generate_dataset()
-    # fuzzgan1 = Fuzzgan(w0_seed=0, threads=3)
-    # fuzzgan1.generate_dataset()
-    # fuzzgan2 = Fuzzgan(w0_seed=1, threads=3)
-    # fuzzgan2.generate_dataset()
-    # fuzzgan3 = Fuzzgan(w0_seed=3, threads=3)
-    # fuzzgan3.generate_dataset()
+    # fuzzgan = Fuzzgan(process_count=1)
+    # fuzzgan.generate_dataset()
+
+    # Set the start method to 'spawn'
+    set_start_method('spawn')
+    # Create processes
+    process_count = 5
+    process_list = zip(range(process_count), [process_count] * process_count)
+    processes = [Process(target=run_fuzzgan, args=(w0_seed, p_count)) for w0_seed, p_count in process_list]
+
+    # Start processes
+    for process in processes:
+        process.start()
+
+    # Wait for all processes to complete
+    for process in processes:
+        process.join()

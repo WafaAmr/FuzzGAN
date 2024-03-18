@@ -102,3 +102,7 @@
 
 print([[x] for x in range(8)])
 print([[x] for x in range(8-1, -1, -1)])
+process_count = 5
+process_list = zip(range(process_count), [process_count] * process_count)
+for i, threads in process_list:
+    print(i, threads)

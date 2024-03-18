@@ -11,7 +11,7 @@ CACHE_DIR = 'checkpoints'
 SEARCH_LIMIT = 100
 SSIM_THRESHOLD = 0.95
 L2_RANGE = 0.2
-STYLEMIX_SEED_LIMIT = 500
+STYLEMIX_SEED_LIMIT = 100
 
 # DRAGGAN_INIT = {
 #     "images": {
@@ -74,7 +74,7 @@ STYLEGAN_INIT = {
     },
     "device": DEVICE,
     "draw_interval": 1,
-    "renderer": Renderer(),
+    "renderer": None,
     'pretrained_weight': INIT_PKL
 }
 
@@ -123,8 +123,8 @@ INITIALPOP = 'random'
 
 GENERATE_ONE_ONLY = False
 
-# MODEL = 'mnist/models/cnnClassifier_lowLR.h5'
-MODEL = 'mnist/models/cnnClassifier.h5'
+MODEL = 'mnist/models/cnnClassifier_lowLR.h5'
+# MODEL = 'mnist/models/cnnClassifier.h5'
 #MODEL = "models/regular3"
 #MODEL = 'models/cnnClassifier_001.h5'
 #MODEL = 'models/cnnClassifier_op.h5'

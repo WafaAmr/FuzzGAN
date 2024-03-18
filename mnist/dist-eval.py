@@ -14,7 +14,7 @@ import json
 
 
 # root_path = 'mnist/eval/HQ'
-root_path = 'mnist/eval/HQ'
+root_path = 'mnist/eval/LQ'
 # m_type = 'optimal'
 m_type = ''
 # save_heatmaps = False
