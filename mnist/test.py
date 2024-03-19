@@ -100,9 +100,66 @@
 
 # # plt.savefig('heatmap_jet.png')
 
-print([[x] for x in range(8)])
-print([[x] for x in range(8-1, -1, -1)])
-process_count = 5
-process_list = zip(range(process_count), [process_count] * process_count)
-for i, threads in process_list:
-    print(i, threads)
+# print([[x] for x in range(8)])
+# print([[x] for x in range(8-1, -1, -1)])
+# process_count = 5
+# process_list = zip(range(process_count), [process_count] * process_count)
+# for i, threads in process_list:
+#     print(i, threads)
+# import nvidia_smi
+# import pynvml
+
+# # Initialize NVML
+# pynvml.nvmlInit()
+
+# # Get the number of GPUs
+# device_count = pynvml.nvmlDeviceGetCount()
+
+# # Iterate over each GPU
+# for i in range(device_count):
+#     # Get a handle to the GPU
+#     handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+
+#     # Get the GPU's name
+#     device_name = pynvml.nvmlDeviceGetName(handle)
+
+#     # Get the GPU's memory info
+#     meminfo = pynvml.nvmlDeviceGetMemoryInfo(handle)
+
+#     # Get the list of processes running on the GPU
+#     procs = pynvml.nvmlDeviceGetComputeRunningProcesses(handle)
+
+#     print(f"Device {i} - {device_name}")
+#     print(f"Total memory: {meminfo.total}")
+#     print(f"Free memory: {meminfo.free}")
+#     print(f"Used memory: {meminfo.used}")
+#     print(f"process count: {int(meminfo.free/1327497216)}")
+
+#     # Print each process's PID and GPU memory usage
+#     for proc in procs:
+#         print(f"PID: {proc.pid}, Used GPU Memory: {proc.usedGpuMemory}")
+
+# # Shut down NVML
+# pynvml.nvmlShutdown()
+# import nvidia_smi
+
+# nvidia_smi.nvmlInit()
+
+# handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
+# # card id 0 hardcoded here, there is also a call to get all available card ids, so we could iterate
+
+# info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+
+# print("Total memory:", info.total)
+# print("Free memory:", info.free)
+# print("Used memory:", info.used)
+
+# nvidia_smi.nvmlShutdown()
+
+#     model_memory_usage = 1327497216
+
+#     nvidia_smi.nvmlInit()
+#     handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
+#     info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+#     process_count = int(info.free / model_memory_usage)
+#     print(f"Process Count: {process_count}")

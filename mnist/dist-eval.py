@@ -15,11 +15,10 @@ import json
 
 # root_path = 'mnist/eval/HQ'
 root_path = 'mnist/eval/LQ'
-# m_type = 'optimal'
-m_type = ''
-# save_heatmaps = False
-save_heatmaps = True
+m_prefix = ''
+save_heatmaps = False
 overwite_heatmaps = True
+save_class_figure = True
 save_to_heatmap_folder = True
 
 
@@ -35,11 +34,118 @@ stylemix_layers = []
 stylemix_seeds = []
 l2_comparison = []
 
+def save_stats(stats_path,
+                stylemix_layers,
+                ssim_distances,
+                mse_distances,
+                psnr_distances,
+                nrmse_distances,
+                l2_distances,
+                l1_distances,
+                non_zero_pixels,
+                pixel_difference,
+                stylemix_seeds,
+                l2_comparison
+              ):
 
+  os.makedirs(stats_path, exist_ok=True)
+
+  # plt.figure(figsize=(20, 6))
+  plt.hist(stylemix_layers, bins='auto')
+  plt.title('Histogram of stylemix_layer')
+  plt.xlabel('Value')
+  plt.ylabel('Frequency')
+  plt.savefig(f'{stats_path}/stylemix_layer.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(ssim_distances, vert=False, meanline=True, showmeans=True)
+  plt.title('Structural similarity index between original and modified images')
+  plt.savefig(f'{stats_path}/SSIM.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(mse_distances, vert=False, meanline=True, showmeans=True)
+  plt.title('Mean squared error between original and modified images')
+  plt.savefig(f'{stats_path}/MSE.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(psnr_distances, vert=False, meanline=True, showmeans=True)
+  plt.title('Peak signal-to-noise ratio between original and modified images')
+  plt.savefig(f'{stats_path}/PSNR.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(nrmse_distances, vert=False, meanline=True, showmeans=True)
+  plt.title('Normalized root mean squared error between original and modified images')
+  plt.savefig(f'{stats_path}/NRMSE.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(l2_distances, vert=False, meanline=True, showmeans=True)
+  plt.title('L2 of original and modified images difference  L2(original - modified)')
+  plt.savefig(f'{stats_path}/L2.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(l1_distances, vert=False, meanline=True, showmeans=True)
+  plt.title('L1 of original and modified images difference  L1(original - modified)')
+  plt.savefig(f'{stats_path}/L1.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(non_zero_pixels, vert=False, meanline=True, showmeans=True)
+  plt.title('Number of mutated pixels')
+  plt.savefig(f'{stats_path}/non_zero_pixels.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(pixel_difference, vert=False, meanline=True, showmeans=True)
+  plt.title('Pixel value difference between original and modified images')
+  plt.savefig(f'{stats_path}/pixel_difference.png')
+  plt.close()
+  # print(f'min pixel difference: {min(pixel_difference)}')
+  # print(f'max pixel difference: {max(pixel_difference)}')
+  # print(f'average pixel difference: {round(np.mean(pixel_difference), 3)}')
+  # print(f'median pixel difference: {np.median(pixel_difference)}')
+  # print(f'mean pixel difference: {np.mean(pixel_difference)}')
+
+  plt.figure(figsize=(20, 6))
+  plt.hist(pixel_difference, bins='auto')
+  plt.title('Histogram of stylemix_layer')
+  plt.xlabel('Value')
+  plt.ylabel('Frequency')
+  plt.savefig(f'{stats_path}/pixel_difference_hist.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(stylemix_seeds, vert=False, meanline=True, showmeans=True)
+  plt.title('Number of mutations')
+  plt.savefig(f'{stats_path}/mutations.png')
+  plt.close()
+
+  plt.figure(figsize=(20, 6))
+  plt.boxplot(l2_comparison, vert=False, meanline=True, showmeans=True)
+  plt.title('L2 difference between original and modified images  (L2(original) - L2(modified))')
+  plt.savefig(f'{stats_path}/l2_comparison.png')
+  plt.close()
 
 model_folder = [f for f in os.listdir(root_path) if os.path.isdir(os.path.join(root_path, f))]
 for class_folder in model_folder:
-  # class_folder = '0'
+
+  class_ssim_distances = []
+  class_mse_distances = []
+  class_psnr_distances = []
+  class_nrmse_distances = []
+  class_l2_distances = []
+  class_l1_distances = []
+  class_non_zero_pixels = []
+  class_pixel_difference = []
+  class_stylemix_layers = []
+  class_stylemix_seeds = []
+  class_l2_comparison = []
+
   class_path = os.path.join(root_path, class_folder)
   seed_class = [f for f in os.listdir(class_path) if os.path.isdir(os.path.join(class_path, f))]
   for seed in seed_class:
@@ -48,11 +154,12 @@ for class_folder in model_folder:
     files = [f for f in content if os.path.isfile(os.path.join(seed_path, f))]
     subfolders = [subfolder for subfolder in content if os.path.isdir(os.path.join(seed_path, subfolder))]
 
+
     for file in files:
       if file.endswith('.png') and not file.startswith('heatmap'):
           img_path = os.path.join(seed_path, file)
           for subfolder in subfolders:
-              m_path = os.path.join(seed_path, subfolder, m_type)
+              m_path = os.path.join(seed_path, subfolder, m_prefix)
               if os.path.exists(m_path):
                   m_pngs = sorted([m_png for m_png in os.listdir(m_path) if os.path.isfile(os.path.join(m_path, m_png)) and m_png.endswith('.png')])
                   for m_png in m_pngs[:1]:
@@ -71,28 +178,39 @@ for class_folder in model_folder:
                         stylemix_seed = data['stylemix_seed']
                         stylemix_layers.append(stylemix_layer)
                         stylemix_seeds.append(stylemix_seed)
+                        class_stylemix_layers.append(stylemix_layer)
+                        class_stylemix_seeds.append(stylemix_seed)
 
                       diff = ImageChops.difference(img, m_img)
                       non_zero_elements = np.array(diff)[np.nonzero(diff)]
                       pixel_difference.extend(non_zero_elements)
+                      class_pixel_difference.extend(non_zero_elements)
                       non_zero_pixel = np.count_nonzero(diff)
                       non_zero_pixels.append(non_zero_pixel)
+                      class_non_zero_pixels.append(non_zero_pixel)
                       ssim_distance = ssim(img_array, m_img_array, data_range=255)
                       ssim_distances.append(ssim_distance)
+                      class_ssim_distances.append(ssim_distance)
                       mse_distance = mse(img_array, m_img_array)
                       mse_distances.append(mse_distance)
+                      class_mse_distances.append(mse_distance)
                       psnr_distance = psnr(img_array, m_img_array, data_range=255)
                       psnr_distances.append(psnr_distance)
+                      class_psnr_distances.append(psnr_distance)
                       nrmse_distance = nrmse(img_array, m_img_array, normalization='euclidean')
                       nrmse_distances.append(nrmse_distance)
+                      class_nrmse_distances.append(nrmse_distance)
                       l2_distance = np.linalg.norm(img_array - m_img_array)
                       l2_distances.append(l2_distance)
+                      class_l2_distances.append(l2_distance)
                       l1_distance = np.linalg.norm(img_array - m_img_array, 1)
                       l1_distances.append(l1_distance)
+                      class_l1_distances.append(l1_distance)
 
                       img_l2 = int(np.linalg.norm(img_array))
                       m_img_l2 = int(np.linalg.norm(m_img_array))
                       l2_comparison.append(img_l2 - m_img_l2)
+                      class_l2_comparison.append(img_l2 - m_img_l2)
 
                       if save_heatmaps:
                         if save_to_heatmap_folder:
@@ -133,74 +251,42 @@ for class_folder in model_folder:
                         else:
                           print(f'Heatmap already exists at {heatmap_path}')
 
-print(f'Average SSIM: {round(np.mean(ssim_distances), 3)}')
-print(f'Average MSE: {round(np.mean(mse_distances), 3)}')
-print(f'Average PSNR: {round(np.mean(psnr_distances), 3)}')
-print(f'Average NRMSE: {round(np.mean(nrmse_distances), 3)}')
-print(f'Average L2: {round(np.mean(l2_distances), 3)}')
-print(f'Average L1: {round(np.mean(l1_distances), 3)}')
-print(f'Average non-zero pixels: {round(np.mean(non_zero_pixels), 3)}')
+  if save_class_figure and not class_folder.startswith('heatmap'):
+    stats_path = f'{root_path}/stats/{class_folder}'
+    save_stats(stats_path,
+                class_stylemix_layers,
+                class_ssim_distances,
+                class_mse_distances,
+                class_psnr_distances,
+                class_nrmse_distances,
+                class_l2_distances,
+                class_l1_distances,
+                class_non_zero_pixels,
+                class_pixel_difference,
+                class_stylemix_seeds,
+                class_l2_comparison
+              )
 
-# plt.figure(figsize=(20, 6))
-plt.hist(stylemix_layers, bins='auto')
-plt.title('Histogram of stylemix_layer')
-plt.xlabel('Value')
-plt.ylabel('Frequency')
-plt.savefig(f'{root_path}/stylemix_layer.png')
+  print(f'Average SSIM: {round(np.mean(class_ssim_distances), 3)}')
+  print(f'Average MSE: {round(np.mean(class_mse_distances), 3)}')
+  print(f'Average PSNR: {round(np.mean(class_psnr_distances), 3)}')
+  print(f'Average NRMSE: {round(np.mean(class_nrmse_distances), 3)}')
+  print(f'Average L2: {round(np.mean(class_l2_distances), 3)}')
+  print(f'Average L1: {round(np.mean(class_l1_distances), 3)}')
+  print(f'Average non-zero pixels: {round(np.mean(class_non_zero_pixels), 3)}')
 
-plt.figure(figsize=(20, 6))
-plt.boxplot(ssim_distances, vert=False, meanline=True, showmeans=True)
-plt.title('Structural similarity index between original and modified images')
-plt.savefig(f'{root_path}/SSIM.png')
 
-plt.figure(figsize=(20, 6))
-plt.boxplot(mse_distances, vert=False, meanline=True, showmeans=True)
-plt.title('Mean squared error between original and modified images')
-plt.savefig(f'{root_path}/MSE.png')
-
-plt.figure(figsize=(20, 6))
-plt.boxplot(psnr_distances, vert=False, meanline=True, showmeans=True)
-plt.title('Peak signal-to-noise ratio between original and modified images')
-plt.savefig(f'{root_path}/PSNR.png')
-
-plt.figure(figsize=(20, 6))
-plt.boxplot(nrmse_distances, vert=False, meanline=True, showmeans=True)
-plt.title('Normalized root mean squared error between original and modified images')
-plt.savefig(f'{root_path}/NRMSE.png')
-
-plt.figure(figsize=(20, 6))
-plt.boxplot(l2_distances, vert=False, meanline=True, showmeans=True)
-plt.title('L2 distance of original and modified images difference')
-plt.savefig(f'{root_path}/L2.png')
-
-plt.figure(figsize=(20, 6))
-plt.boxplot(l1_distances, vert=False, meanline=True, showmeans=True)
-plt.title('L1 distance of original and modified images difference')
-plt.savefig(f'{root_path}/L1.png')
-
-plt.figure(figsize=(20, 6))
-plt.boxplot(non_zero_pixels, vert=False, meanline=True, showmeans=True)
-plt.title('Number of mutated pixels')
-plt.savefig(f'{root_path}/non_zero_pixels.png')
-
-plt.figure(figsize=(20, 6))
-plt.boxplot(pixel_difference, vert=False, meanline=True, showmeans=True)
-plt.title('Pixel value difference between original and modified images')
-# plt.xlabel('Value')
-# plt.ylabel('Frequency')
-plt.savefig(f'{root_path}/pixel_difference.png')
-# print(f'min pixel difference: {min(pixel_difference)}')
-# print(f'max pixel difference: {max(pixel_difference)}')
-# print(f'average pixel difference: {round(np.mean(pixel_difference), 3)}')
-# print(f'median pixel difference: {np.median(pixel_difference)}')
-# print(f'mean pixel difference: {np.mean(pixel_difference)}')
-
-plt.figure(figsize=(20, 6))
-plt.boxplot(stylemix_seeds, vert=False, meanline=True, showmeans=True)
-plt.title('Number of mutations')
-plt.savefig(f'{root_path}/mutations.png')
-
-plt.figure(figsize=(20, 6))
-plt.boxplot(l2_comparison, vert=False, meanline=True, showmeans=True)
-plt.title('L2 difference between original and modified images')
-plt.savefig(f'{root_path}/l2_comparison.png')
+stats_path = f'{root_path}/stats/'
+save_stats(stats_path,
+            stylemix_layers,
+            ssim_distances,
+            mse_distances,
+            psnr_distances,
+            nrmse_distances,
+            l2_distances,
+            l1_distances,
+            non_zero_pixels,
+            pixel_difference,
+            stylemix_seeds,
+            l2_comparison
+          )

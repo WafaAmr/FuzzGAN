@@ -10,15 +10,16 @@ from predictor import Predictor
 from utils import validate_mutation
 # import pickle
 # import dnnlib
-from multiprocessing import Process, set_start_method
+from multiprocessing import Process, Pool, set_start_method
 
 class Fuzzgan:
 
-    def __init__(self, w0_seed=0, stylemix_seed=0, search_limit=SEARCH_LIMIT , process_count=None):
+    def __init__(self, seed_class=None, w0_seed=0, stylemix_seed=0, search_limit=SEARCH_LIMIT , process_count=None):
         self.state = STYLEGAN_INIT
         self.mix_state = None
         self.dataset = []
         self.search_limit = search_limit
+        self.seed_class = seed_class
         self.w0_seed = w0_seed
         # self.stylemix_seed = stylemix_seed
         self.stylemix_seed_limit = STYLEMIX_SEED_LIMIT
@@ -49,8 +50,8 @@ class Fuzzgan:
         return state, info
 
     def generate_dataset(self):
-        digit_class = 5
-        root = f"mnist/eval/LQ/{digit_class}/"
+        seed_class = self.seed_class
+        root = f"mnist/eval/HQ/{seed_class}/"
 
         data_point = 0
         if self.process_count:
@@ -61,7 +62,7 @@ class Fuzzgan:
         while data_point < self.search_limit:
             state = self.state
 
-            state["params"]["class_idx"] = digit_class
+            state["params"]["class_idx"] = seed_class
             state["params"]["w0_seeds"] = [[self.w0_seed, 1.0]]
             state["params"]["stylemix_idx"] = []
             state["params"]["mixclass_idx"] = None
@@ -177,27 +178,30 @@ print(os.listdir(CACHE_DIR))
 print('\nValid checkpoint file:')
 print(valid_checkpoints_dict)
 
-def run_fuzzgan(w0_seed, process_count):
-    print(f'Running Fuzzgan with w0_seed: {w0_seed}, process_count: {process_count}')
+
+def run_fuzzgan(args):
+    seed_class, w0_seed, process_count = args
+    print('----------------------------------------------------')
+    print(f"Process for class:{seed_class}:{w0_seed} Started")
+    print('----------------------------------------------------')
     search_limit = int(SEARCH_LIMIT / process_count)
-    print(f'Search limit: {search_limit}')
-    Fuzzgan(w0_seed=w0_seed, search_limit=search_limit, process_count=process_count).generate_dataset()
+    Fuzzgan(seed_class=seed_class, w0_seed=w0_seed, search_limit=search_limit, process_count=process_count).generate_dataset()
+    print('###################################################')
+    print(f"Process for class:{seed_class}:{w0_seed} finished")
+    print('###################################################')
 
 if __name__ == "__main__":
     # fuzzgan = Fuzzgan(process_count=1)
     # fuzzgan.generate_dataset()
 
-    # Set the start method to 'spawn'
-    set_start_method('spawn')
-    # Create processes
+    args_list = []
     process_count = 5
-    process_list = zip(range(process_count), [process_count] * process_count)
-    processes = [Process(target=run_fuzzgan, args=(w0_seed, p_count)) for w0_seed, p_count in process_list]
 
-    # Start processes
-    for process in processes:
-        process.start()
+    for seed_class in range(10):
+        for w0_seed in range(process_count):
+            args_list.append((seed_class, w0_seed, process_count))
 
-    # Wait for all processes to complete
-    for process in processes:
-        process.join()
+    print(f"Args List: {args_list}")
+    set_start_method('spawn')
+    with Pool(processes=process_count) as pool:
+        pool.map(run_fuzzgan, args_list, chunksize=1)
