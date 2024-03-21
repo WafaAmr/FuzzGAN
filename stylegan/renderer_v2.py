@@ -117,33 +117,41 @@ def _apply_affine_transformation(x, mat, up=4, **filter_kwargs):
 #----------------------------------------------------------------------------
 
 class Renderer:
-    def __init__(self):
-        self._device        = torch.device('cuda')
+    def __init__(self, disable_timing=False):
+        self._device        = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+        self._dtype         = torch.float32 if self._device.type == 'mps' else torch.float64
         self._pkl_data      = dict()    # {pkl: dict | CapturedException, ...}
         self._networks      = dict()    # {cache_key: torch.nn.Module, ...}
         self._pinned_bufs   = dict()    # {(shape, dtype): torch.Tensor, ...}
         self._cmaps         = dict()    # {name: torch.Tensor, ...}
         self._is_timing     = False
-        self._start_event   = torch.cuda.Event(enable_timing=True)
-        self._end_event     = torch.cuda.Event(enable_timing=True)
+        if not disable_timing:
+            self._start_event   = torch.cuda.Event(enable_timing=True)
+            self._end_event     = torch.cuda.Event(enable_timing=True)
+        self._disable_timing = disable_timing
         self._net_layers    = dict()    # {cache_key: [dnnlib.EasyDict, ...], ...}
 
     def render(self, **args):
-        self._is_timing = True
+        if self._disable_timing:
+            self._is_timing = False
+        else:
+            self._start_event.record(torch.cuda.current_stream(self._device))
+            self._is_timing = True
         self._start_event.record(torch.cuda.current_stream(self._device))
         res = dnnlib.EasyDict()
         try:
             self._render_impl(res, **args)
         except:
             res.error = CapturedException()
-        self._end_event.record(torch.cuda.current_stream(self._device))
+        if not self._disable_timing:
+            self._end_event.record(torch.cuda.current_stream(self._device))
         if 'image' in res:
             res.image = self.to_cpu(res.image).numpy()
         if 'stats' in res:
             res.stats = self.to_cpu(res.stats).numpy()
         if 'error' in res:
             res.error = str(res.error)
-        if self._is_timing:
+        if self._is_timing and not self._disable_timing:
             self._end_event.synchronize()
             res.render_time = self._start_event.elapsed_time(self._end_event) * 1e-3
             self._is_timing = False
@@ -289,8 +297,12 @@ class Renderer:
 
         # Run mapping network.
         w_avg = G.mapping.w_avg
-        all_zs = self.to_device(torch.from_numpy(all_zs))
-        all_cs = self.to_device(torch.from_numpy(all_cs))
+        if self._device.type == 'mps':
+            all_zs = torch.from_numpy(all_zs).to(self._device, dtype=self._dtype)
+            all_cs = torch.from_numpy(all_cs).to(self._device, dtype=self._dtype)
+        else:
+            all_zs = self.to_device(torch.from_numpy(all_zs))
+            all_cs = self.to_device(torch.from_numpy(all_cs))
         all_ws = G.mapping(z=all_zs, c=all_cs, truncation_psi=trunc_psi, truncation_cutoff=trunc_cutoff) - w_avg
         all_ws = dict(zip(all_seeds, all_ws))
 
