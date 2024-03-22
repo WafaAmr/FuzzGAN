@@ -6,15 +6,10 @@ import numpy as np
 import os
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import json
-from seed_utils_1 import Fuzzgan
 from config import CACHE_DIR, STYLEGAN_INIT, SEARCH_LIMIT
 import os.path as osp
-
-
-root_path = 'mnist/search2/'
-save_to_heatmap_folder = False
-distance_percentages = []
-mix_seeds = []
+from stylegan.renderer_v2 import Renderer
+import copy
 
 def generate_seed(state=None):
     valid_checkpoints_dict = {
@@ -23,7 +18,7 @@ def generate_seed(state=None):
     if (f.endswith('pkl') and osp.exists(osp.join(CACHE_DIR, f)))
 }
 
-    state['renderer']._render_impl(
+    Renderer(disable_timing=True)._render_impl(
         res = state['generator_params'],  # res
         pkl = valid_checkpoints_dict[state['pretrained_weight']],  # pkl
         w0_seeds= state['params']['w0_seeds'],  # w0_seed,
@@ -35,28 +30,42 @@ def generate_seed(state=None):
         to_pil = state['params']['to_pil'],
     )
 
-    # print(state['generator_params'])
-    init_image = state['generator_params'].image
-    w = state['generator_params'].w
-    # print(w.shape)
-    state['images']['image_orig'] = init_image
-    # layers = [[x] for x in range(state['generator_params'].num_ws)]
+    info =  copy.deepcopy(state['params'])
+
+    return state, info
 
 
-    return state, w
-
-
+fig, axs = plt.subplots(3, 10, figsize=(50, 15))
 digit_info = STYLEGAN_INIT
-img, w = generate_seed(digit_info)
-img = img["images"]["image_orig"]
-img.save('acc-0.png')
+digit_info["params"]["w0_seeds"] = [[0, 1]]
+digit_info["params"]["class_idx"] = 2
+digit, _ = generate_seed(digit_info)
+img = digit['generator_params'].image
+w = digit['generator_params'].w
+axs[0,0].imshow(img, cmap='gray')
+axs[0,0].set_title(f'ID: 0')
+
+
 m_img = None
 for i in range(1, 10):
     prev_img = m_img if m_img else img
     digit_info["params"]["stylemix_seed"] = i
+    digit_info["params"]["mixclass_idx"] = 5
+    digit_info["params"]["stylemix_idx"] = [6]
     digit_info["params"]["w_load"] = w
-    m_img, w = generate_seed(digit_info)
-    m_img = m_img["images"]["image_orig"]
-    print(get_distance(np.array(prev_img), np.array(m_img)))
-    m_img.save(f'acc-{i}.png')
+    m_digit, m_digit_info = generate_seed(digit_info)
+    m_img = m_digit['generator_params'].image
+    w = digit['generator_params'].w
+    o_diff = ImageChops.difference(img, m_img)
+    pre_diff = ImageChops.difference(prev_img, m_img)
+
+    axs[0, i].imshow(o_diff, cmap='jet', interpolation='nearest')
+    axs[0, i].set_title(f'DIFF: {0} - {i}, L2: {int(get_distance(np.array(img), np.array(m_img)))}')
+    axs[1, i].imshow(m_img, cmap='gray')
+    axs[1, i].set_title(f'ID: {i}, Mixclass: 5, Seed: {i}, Layer: 6')
+    axs[2, i].imshow(pre_diff, cmap='jet', interpolation='nearest')
+    axs[2, i].set_title(f'DIFF: {i-1} - {i}, L2: {int(get_distance(np.array(prev_img), np.array(m_img)))}')
+
+
+plt.savefig('acc-2-5.png')
 

@@ -273,27 +273,49 @@ class Renderer:
                 res.error = CapturedException()
             G.synthesis.input.transform.copy_(torch.from_numpy(m))
 
+        stylemix_cs = None
+
         if stylemix_seed is not None:
             all_seeds = [seed for seed, _weight in w0_seeds] + [stylemix_seed]
+            stylemix_cs = np.zeros([1, G.c_dim], dtype=np.float32)
+
+            if G.c_dim > 0:
+                if mixclass_idx is not None:
+                    stylemix_cs[:, mixclass_idx] = 1
+                else:
+                    rnd = np.random.RandomState(stylemix_seed)
+                    stylemix_cs[:, rnd.randint(G.c_dim)] = 1
+
         else:
             all_seeds = [seed for seed, _weight in w0_seeds]
 
+
+        w0_cs = np.zeros([len(w0_seeds), G.c_dim], dtype=np.float32)
+        if G.c_dim > 0:
+            if class_idx is not None:
+                if isinstance(class_idx, list):
+                    for idx, _ in enumerate(w0_seeds):
+                        w0_cs[idx, class_idx[idx]] = 1
+                else:
+                    w0_cs[:, class_idx] = 1
+            else:
+                for idx, w0_seed in enumerate(w0_seeds):
+                    seed, _weight = w0_seed
+                    rnd = np.random.RandomState(seed)
+                    w0_cs[idx, rnd.randint(G.c_dim)] = 1
+
+        if stylemix_cs is not None:
+            all_cs = np.concatenate([w0_cs, stylemix_cs], axis=0)
+        else:
+            all_cs = w0_cs
+
         print(f"class: {class_idx}, w0_seed: {w0_seeds[0][0]}, mixclass_idx:{mixclass_idx} , stylemix_seed:{stylemix_seed}, stylemix_idx:{stylemix_idx}")
+        # print(f"all_cs: {all_cs}")
 
         all_zs = np.zeros([len(all_seeds), G.z_dim], dtype=np.float32)
-        all_cs = np.zeros([len(all_seeds), G.c_dim], dtype=np.float32)
-
         for idx, seed in enumerate(all_seeds):
-            if G.c_dim > 0:
-                rnd = np.random.RandomState(seed)
-                if stylemix_seed is not None and mixclass_idx is not None and seed == stylemix_seed:
-                    all_cs[idx][mixclass_idx] = 1
-                elif class_idx is not None:
-                    all_cs[idx][class_idx] = 1
-                else:
-                    all_cs[idx, rnd.randint(G.c_dim)] = 1
+            rnd = np.random.RandomState(seed)
             all_zs[idx] = rnd.randn(G.z_dim)
-
 
         # Run mapping network.
         w_avg = G.mapping.w_avg
@@ -306,9 +328,9 @@ class Renderer:
         all_ws = G.mapping(z=all_zs, c=all_cs, truncation_psi=trunc_psi, truncation_cutoff=trunc_cutoff) - w_avg
         all_ws = dict(zip(all_seeds, all_ws))
 
-        if w_load:
+        if w_load is not None:
             for seed, _ in all_ws.items():
-                if seed in w0_seeds:
+                if seed in w0_seeds[:, 0]:
                     all_ws[seed] = w_load
 
         # Calculate final W.

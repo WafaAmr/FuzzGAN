@@ -163,3 +163,6 @@
 #     info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
 #     process_count = int(info.free / model_memory_usage)
 #     print(f"Process Count: {process_count}")
+# import numpy as np
+# x = np.array([[1,2],[3,4]])
+# print(x[:, 0])
