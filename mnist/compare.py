@@ -58,8 +58,14 @@ while step < 1:
   digit_info["params"]["class_idx"] = [2, 5]
   digit, _ = generate_seed(digit_info)
   img = digit['generator_params'].image
+  m_image = img.crop((2, 2, img.width - 2, img.height - 2))
+  _accepted, _confidence, predictions = Predictor().predict_datapoint(
+  np.reshape(m_image, (-1, 28, 28, 1)),
+  2
+  )
+  digit_class = np.argsort(-predictions)[:1]
   axs[i].imshow(img, cmap='gray')
-  axs[i].set_title(f'{int(get_distance(np.array(o_img), np.array(img)))} - {(round(1-step, 1))}:{(round(step, 1))} - {int(get_distance(np.array(m_img), np.array(img)))}')
+  axs[i].set_title(f'Class: {digit_class},{int(get_distance(np.array(o_img), np.array(img)))} - {(round(1-step, 1))}:{(round(step, 1))} - {int(get_distance(np.array(m_img), np.array(img)))}')
   step += 0.1
   i += 1
 axs[10].imshow(m_img, cmap='gray')

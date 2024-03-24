@@ -37,8 +37,9 @@ def generate_seed(state=None):
 
 fig, axs = plt.subplots(3, 10, figsize=(50, 15))
 digit_info = STYLEGAN_INIT
+start_class = 2
 digit_info["params"]["w0_seeds"] = [[0, 1]]
-digit_info["params"]["class_idx"] = 2
+digit_info["params"]["class_idx"] = start_class
 digit, _ = generate_seed(digit_info)
 img = digit['generator_params'].image
 w = digit['generator_params'].w
@@ -59,10 +60,19 @@ for i in range(1, 10):
     o_diff = ImageChops.difference(img, m_img)
     pre_diff = ImageChops.difference(prev_img, m_img)
 
+    m_image = m_img.crop((2, 2, m_img.width - 2, m_img.height - 2))
+    accepted, _confidence, predictions = Predictor().predict_datapoint(
+    np.reshape(m_image, (-1, 28, 28, 1)),
+    start_class
+    )
+    if accepted:
+        digit_class = start_class
+    else:
+        digit_class = np.argsort(-predictions)[:1]
     axs[0, i].imshow(o_diff, cmap='jet', interpolation='nearest')
     axs[0, i].set_title(f'DIFF: {0} - {i}, L2: {int(get_distance(np.array(img), np.array(m_img)))}')
     axs[1, i].imshow(m_img, cmap='gray')
-    axs[1, i].set_title(f'ID: {i}, Mixclass: 5, Seed: {i}, Layer: 6')
+    axs[1, i].set_title(f'ID: {i}, Class: {digit_class}, Seed: {i}, Layer: 6')
     axs[2, i].imshow(pre_diff, cmap='jet', interpolation='nearest')
     axs[2, i].set_title(f'DIFF: {i-1} - {i}, L2: {int(get_distance(np.array(prev_img), np.array(m_img)))}')
 

@@ -1,134 +1,57 @@
-import random
-import xml.etree.ElementTree as ET
-import re
-from random import randint, uniform
-from config import MUTLOWERBOUND, MUTUPPERBOUND, MUTOFPROB
+import os
+from config import CACHE_DIR
+import os.path as osp
+from stylegan.renderer_v2 import Renderer
+import copy
 
-NAMESPACE = '{http://www.w3.org/2000/svg}'
+def render_seed(state=None):
 
+    Renderer(disable_timing=True)._render_impl(
+        res = state['generator_params'],  # res
+        pkl = valid_checkpoints_dict[state['pretrained_weight']],  # pkl
+        w0_seeds= state['params']['w0_seeds'],  # w0_seed,
+        class_idx = state['params']['class_idx'],  # class_idx,
+        mixclass_idx = state['params']['mixclass_idx'],  # mix_idx,
+        stylemix_idx = state['params']['stylemix_idx'],  # stylemix_idx,
+        stylemix_seed = state['params']['stylemix_seed'],  # stylemix_seed,
+        img_normalize = state['params']['img_normalize'],
+        to_pil = state['params']['to_pil'],
+    )
 
-def apply_displacement_to_mutant(value, extent):
-    displ = uniform(MUTLOWERBOUND, MUTUPPERBOUND) * extent
-    if random.uniform(0, 1) >= MUTOFPROB:
-        result = float(value) + displ
-    else:
-        result = float(value) - displ
-    return repr(result)
+    info =  copy.deepcopy(state['params'])
 
+    return state, info
 
-def apply_mutoperator1(svg_path, extent):
+def apply_mutoperator1(state, extent):
+    state['params']['stylemix_idx'] = extent['stylemix_idx']
 
-    while(True):
-        # find all the vertexes
-        pattern = re.compile('([\d\.]+),([\d\.]+)\s[MCLZ]')
-        segments = pattern.findall(svg_path)
-        svg_iter = re.finditer(pattern, svg_path)
-        # chose a random vertex
-        num_matches = len(segments) * 2
-
-        random_coordinate_index = randint(0, num_matches - 1)
-        # print(random_coordinate_index)
-
-        vertex = next(value for index, value in enumerate(svg_iter) if int(index == int(random_coordinate_index / 2)))
-        group_index = (random_coordinate_index % 2) + 1
-
-        value = apply_displacement_to_mutant(vertex.group(group_index), extent)
-
-        if 0 <= float(value) <= 28:
-            break
-
-    path = svg_path[:vertex.start(group_index)] + value + svg_path[vertex.end(group_index):]
-    return path
+    return state
 
 
-def apply_mutoperator2(svg_path, extent):
-    # find all the vertexes
-    pattern = re.compile('C\s([\d\.]+),([\d\.]+)\s([\d\.]+),([\d\.]+)\s')
-    segments = pattern.findall(svg_path)
+def apply_mutoperator2(state, extent):
+    stylemix_seed = state['params']['stylemix_seed']
+    mixclass_idx = state['params']['mixclass_idx']
+    state['params']['stylemix_idx'] = None
+    state['params']['stylemix_seed'] = None
+    state['params']['mixclass_idx'] = None
 
-    # chose a random control point
-    num_matches = len(segments) * 4
-    path = svg_path
-    if num_matches > 0:
-        random_coordinate_index = randint(0, num_matches - 1)
-        svg_iter = re.finditer(pattern, svg_path)
-        control_point = next(value for index, value in enumerate(svg_iter) if int(index == int(random_coordinate_index/4)))
-        group_index = (random_coordinate_index % 4) + 1
-        value = apply_displacement_to_mutant(control_point.group(group_index), extent)
-        path = svg_path[:control_point.start(group_index)] + value + svg_path[control_point.end(group_index):]
-    else:
-        print("ERROR")
-        print(svg_path)
-    return path
+
+    return state
 
 
 def mutate(state, operator_name, mutation_extent):
     if operator_name == 1:
-        mutant_vector = apply_mutoperator1(state, mutation_extent)
+        state = apply_mutoperator1(state, mutation_extent)
     elif operator_name == 2:
-        mutant_vector = apply_mutoperator2(svg_path, mutation_extent)
-    return mutant_vector
+        state = apply_mutoperator2(state, mutation_extent)
+    return state
 
-
-def generate(svg_desc, operator_name):
-    root = ET.fromstring(svg_desc)
-    svg_path = root.find(NAMESPACE + 'path').get('d')
-    if operator_name == 1:
-        vector1, vector2 = apply_operator1(svg_path)
-    elif operator_name == 2:
-        vector1, vector2 = apply_operator2(svg_path)
-    return vector1, vector2
-
-
-def apply_displacement(value):
-    displ = uniform(MUTLOWERBOUND, MUTUPPERBOUND)
-    result = float(value) + displ
-    difference = float(value) - displ
-    return repr(result), repr(difference)
-
-
-def apply_operator1(svg_path):
-    while(True):
-        # find all the vertexes
-        pattern = re.compile('([\d\.]+),([\d\.]+)\s[MCLZ]')
-        segments = pattern.findall(svg_path)
-        svg_iter = re.finditer(pattern, svg_path)
-        # chose a random vertex
-        num_matches = len(segments) * 2
-
-        random_coordinate_index = randint(0, num_matches - 1)
-
-        vertex = next(value for index, value in enumerate(svg_iter) if int(index == int(random_coordinate_index / 2)))
-        group_index = (random_coordinate_index % 2) + 1
-
-        value1, value2 = apply_displacement(vertex.group(group_index))
-
-        if 0 <= float(value1) <= 28 and 0 <= float(value2) <= 28:
-            break
-
-    path1 = svg_path[:vertex.start(group_index)] + value1 + svg_path[vertex.end(group_index):]
-    path2 = svg_path[:vertex.start(group_index)] + value2 + svg_path[vertex.end(group_index):]
-    return path1, path2
-
-
-def apply_operator2(svg_path):
-    # find all the vertexes
-    pattern = re.compile('C\s([\d\.]+),([\d\.]+)\s([\d\.]+),([\d\.]+)\s')
-    segments = pattern.findall(svg_path)
-
-    # chose a random control point
-    num_matches = len(segments) * 4
-    path1 = svg_path
-    path2 = svg_path
-    if num_matches > 0:
-        random_coordinate_index = randint(0, num_matches - 1)
-        svg_iter = re.finditer(pattern, svg_path)
-        control_point = next(value for index, value in enumerate(svg_iter) if int(index == int(random_coordinate_index/4)))
-        group_index = (random_coordinate_index % 4) + 1
-        value1, value2 = apply_displacement(control_point.group(group_index))
-        path1 = svg_path[:control_point.start(group_index)] + value1 + svg_path[control_point.end(group_index):]
-        path2 = svg_path[:control_point.start(group_index)] + value2 + svg_path[control_point.end(group_index):]
-    else:
-        print("ERROR")
-        print(svg_path)
-    return path1, path2
+valid_checkpoints_dict = {
+    f.split('/')[-1].split('.')[0]: osp.join(CACHE_DIR, f)
+    for f in os.listdir(CACHE_DIR)
+    if (f.endswith('pkl') and osp.exists(osp.join(CACHE_DIR, f)))
+}
+print(f'\nFile under CACHE_DIR ({CACHE_DIR}):')
+print(os.listdir(CACHE_DIR))
+print('\nValid checkpoint file:')
+print(valid_checkpoints_dict)
