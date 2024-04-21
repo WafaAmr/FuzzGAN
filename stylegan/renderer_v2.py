@@ -248,16 +248,13 @@ class Renderer:
         img_scale_db    = 0,
         img_normalize   = False,
         to_pil          = False,
-        fft_show        = False,
-        fft_all         = True,
-        fft_range_db    = 50,
-        fft_beta        = 8,
         input_transform = None,
         untransform     = False,
     ):
 
         # Dig up network details.
         G = self.get_network(pkl, 'G_ema')
+        self.G = G
         res.img_resolution = G.img_resolution
         res.num_ws = G.num_ws
         res.has_noise = any('noise_const' in name for name, _buf in G.synthesis.named_buffers())
@@ -274,9 +271,9 @@ class Renderer:
             G.synthesis.input.transform.copy_(torch.from_numpy(m))
 
         stylemix_cs = None
-
+        w0_zs_seeds = [seed for seed, _weight in w0_seeds]
         if stylemix_seed is not None:
-            all_seeds = [seed for seed, _weight in w0_seeds] + [stylemix_seed]
+            all_seeds = w0_zs_seeds + [stylemix_seed]
             stylemix_cs = np.zeros([1, G.c_dim], dtype=np.float32)
 
             if G.c_dim > 0:
@@ -287,7 +284,7 @@ class Renderer:
                     stylemix_cs[:, rnd.randint(G.c_dim)] = 1
 
         else:
-            all_seeds = [seed for seed, _weight in w0_seeds]
+            all_seeds = w0_zs_seeds
 
 
         w0_cs = np.zeros([len(w0_seeds), G.c_dim], dtype=np.float32)
@@ -322,15 +319,20 @@ class Renderer:
         if self._device.type == 'mps':
             all_zs = torch.from_numpy(all_zs).to(self._device, dtype=self._dtype)
             all_cs = torch.from_numpy(all_cs).to(self._device, dtype=self._dtype)
+            if w_load is not None:
+                w_load = torch.from_numpy(w_load).to(self._device, dtype=self._dtype).squeeze(0)
         else:
             all_zs = self.to_device(torch.from_numpy(all_zs))
             all_cs = self.to_device(torch.from_numpy(all_cs))
+            if w_load is not None:
+                w_load = self.to_device(torch.from_numpy(w_load)).squeeze(0)
+
         all_ws = G.mapping(z=all_zs, c=all_cs, truncation_psi=trunc_psi, truncation_cutoff=trunc_cutoff) - w_avg
         all_ws = dict(zip(all_seeds, all_ws))
 
         if w_load is not None:
-            for seed, _ in all_ws.items():
-                if seed in w0_seeds[:, 0]:
+            for seed, old_w in all_ws.items():
+                if seed in w0_zs_seeds:
                     all_ws[seed] = w_load
 
         # Calculate final W.
@@ -338,7 +340,8 @@ class Renderer:
         stylemix_idx = [idx for idx in stylemix_idx if 0 <= idx < G.num_ws]
         if stylemix_seed is not None and len(stylemix_idx) > 0:
             w[:, stylemix_idx] = all_ws[stylemix_seed][np.newaxis, stylemix_idx]
-        w += w_avg
+        if w_load is None:
+            w += w_avg
 
         # Run synthesis network.
         synthesis_kwargs = dnnlib.EasyDict(noise_mode=noise_mode, force_fp32=force_fp32)
@@ -352,7 +355,7 @@ class Renderer:
                 torch.manual_seed(random_seed)
                 _out, layers = self.run_synthesis_net(G.synthesis, w, **synthesis_kwargs)
             self._net_layers[cache_key] = layers
-        res.layers = self._net_layers[cache_key]
+        # res.layers = self._net_layers[cache_key]
 
         # Untransform.
         if untransform and res.has_input_transform:
@@ -376,6 +379,7 @@ class Renderer:
             img = img / img.norm(float('inf'), dim=[1,2], keepdim=True).clip(1e-8, 1e8)
         img = img * (10 ** (img_scale_db / 20))
         img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8).permute(1, 2, 0)
+        # print(f"Renderer: image size = {img.shape}")
         if to_pil:
             from PIL import Image
             img = img.cpu().numpy()
@@ -383,19 +387,8 @@ class Renderer:
                 img = img.squeeze()  # Remove singleton dimensions
             img = Image.fromarray(img)
         res.image = img
-        # FFT.
-        if fft_show:
-            sig = out if fft_all else sel
-            sig = sig.to(torch.float32)
-            sig = sig - sig.mean(dim=[1,2], keepdim=True)
-            sig = sig * torch.kaiser_window(sig.shape[1], periodic=False, beta=fft_beta, device=self._device)[None, :, None]
-            sig = sig * torch.kaiser_window(sig.shape[2], periodic=False, beta=fft_beta, device=self._device)[None, None, :]
-            fft = torch.fft.fftn(sig, dim=[1,2]).abs().square().sum(dim=0)
-            fft = fft.roll(shifts=[fft.shape[0] // 2, fft.shape[1] // 2], dims=[0,1])
-            fft = (fft / fft.mean()).log10() * 10 # dB
-            fft = self._apply_cmap((fft / fft_range_db + 1) / 2)
-            res.image = torch.cat([img.expand_as(fft), fft], dim=1)
 
+        # print(f"Renderer: W size = {w.shape}")
         res.w = w.detach().cpu().numpy()
 
     @staticmethod
