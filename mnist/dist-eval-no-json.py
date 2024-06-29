@@ -12,12 +12,12 @@ from skimage.metrics import normalized_root_mse as nrmse
 import matplotlib.pyplot as plt
 import json
 
-root_path = 'mnist/eval/final/HQ-100-10'
+root_path = 'mnist/eval/final/LQ-cross'
 # root_path = 'mnist/eval/final/LQ/'
 # root_path = 'mnist/eval/final/HQ-100-10/'
 # root_path = 'mnist/4000/eval/HQ/'
 m_prefix = ''
-save_heatmaps = False
+save_heatmaps = True
 title = False
 x = 10
 y = 2
@@ -279,18 +279,6 @@ for class_folder in model_folder:
                         m_img_array = np.array(m_img)
 
                         m_img_json_path = os.path.join(m_path, m_png.replace('.png', '.json'))
-                        with open(m_img_json_path, 'r') as f:
-                          data = json.load(f)
-                          stylemix_layer = data['stylemix_idx']
-                          stylemix_layer = f'{stylemix_layer}'
-
-                          con_class = data["predicted-class"][0]
-                          stylemix_seed = data['stylemix_seed']
-                          con_classes[int(class_folder)].append(con_class)
-                          stylemix_layers.append(stylemix_layer)
-                          stylemix_seeds[int(class_folder)].append(stylemix_seed)
-                          stylemix_seeds[10].append(stylemix_seed)
-                          class_stylemix_layers.append(stylemix_layer)
 
                         diff = ImageChops.difference(img, m_img)
                         non_zero_elements = np.array(diff)[np.nonzero(diff)]
@@ -370,22 +358,22 @@ for class_folder in model_folder:
                           else:
                             print(f'Heatmap already exists at {heatmap_path}')
 
-    if save_class_figure and not class_folder.startswith('heatmap'):
-      stats_path = f'{root_path}/stats/{class_folder}'
-      save_stats(stats_path,
-                  class_stylemix_layers,
-                  class_ssim_distances,
-                  class_mse_distances,
-                  class_psnr_distances,
-                  class_nrmse_distances,
-                  class_l2_distances,
-                  class_l1_distances,
-                  class_non_zero_pixels,
-                  class_pixel_difference,
-                  seeds[int(class_folder)],
-                  stylemix_seeds[int(class_folder)],
-                  class_l2_comparison
-                )
+    # if save_class_figure and not class_folder.startswith('heatmap'):
+    #   stats_path = f'{root_path}/stats/{class_folder}'
+    #   save_stats(stats_path,
+    #               class_stylemix_layers,
+    #               class_ssim_distances,
+    #               class_mse_distances,
+    #               class_psnr_distances,
+    #               class_nrmse_distances,
+    #               class_l2_distances,
+    #               class_l1_distances,
+    #               class_non_zero_pixels,
+    #               class_pixel_difference,
+    #               seeds[int(class_folder)],
+    #               stylemix_seeds[int(class_folder)],
+    #               class_l2_comparison
+    #             )
 
     # print(f'Average SSIM: {round(np.mean(class_ssim_distances), 3)}')
     # print(f'Average MSE: {round(np.mean(class_mse_distances), 3)}')
@@ -417,4 +405,3 @@ print(f'Average Seeds: {round(np.mean(seeds[10]), 3)}')
 print(f'Max Seeds: {np.max(seeds[10])}')
 print(f'Average StyleMix Seeds: {round(np.mean(stylemix_seeds[10]), 3)}')
 print(f'Average L2: {round(np.mean(l2_distances), 3)}')
-print(f'Average SSIM: {round(np.mean(ssim_distances), 3)}')

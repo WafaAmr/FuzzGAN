@@ -58,8 +58,10 @@ class Archive:
     def get_min_distance_from_archive(self, seed):
         distances = list()
         for archived_ind in self.archive:
-            dist_member1 = np.linalg.norm(archived_ind.m1.purified - seed)
-            dist_member2 = np.linalg.norm(archived_ind.m2.purified - seed)
+            # dist_member1 = np.linalg.norm(archived_ind.m1.purified - seed)
+            # dist_member2 = np.linalg.norm(archived_ind.m2.purified - seed)
+            dist_member1 = get_distance(archived_ind.m1.purified , seed)
+            dist_member2 = get_distance(archived_ind.m2.purified , seed)
             avg_dist = (dist_member1 + dist_member2) / 2
             distances.append(avg_dist)
         min_dist = min(distances)
@@ -118,7 +120,8 @@ class Archive:
                 sumdistances = 0
                 for dig2 in outer_frontier:
                     if dig1 != dig2:
-                        sumdistances += np.linalg.norm(dig1.purified - dig2.purified)
+                        # sumdistances += np.linalg.norm(dig1.purified - dig2.purified)
+                        sumdistances += get_distance(dig1.purified , dig2.purified)
                 dig1.sparseness = sumdistances / (n - 1)
                 sumsparseness += dig1.sparseness
             avg_sparseness = sumsparseness / n
@@ -132,7 +135,7 @@ class Archive:
         stats = [None] * 4
         final_seeds = []
         if len(solution) > 0:
-            reference_filename = 'ref_digit/cinque_rp.npy'
+            reference_filename = 'mnist/ref_digit/cinque_rp.npy'
             reference = np.load(reference_filename)
             out_diameter = get_diameter(outer_frontier)
             in_diameter = get_diameter(inner_frontier)

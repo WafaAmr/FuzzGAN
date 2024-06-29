@@ -6,7 +6,7 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-from socket import has_dualstack_ipv6
+# from socket import has_dualstack_ipv6
 import sys
 import copy
 import traceback

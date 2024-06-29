@@ -5,7 +5,7 @@ import json
 import numpy as np
 from PIL import Image
 from stylegan.renderer_v2 import Renderer
-from config import CACHE_DIR, STYLEGAN_INIT, SEARCH_LIMIT, STYLEMIX_SEED_LIMIT, SSIM_THRESHOLD
+from config import STYLEGAN_INIT, SEARCH_LIMIT, STYLEMIX_SEED_LIMIT, SSIM_THRESHOLD, INIT_PKL
 from predictor import Predictor
 from utils import validate_mutation
 # import pickle
@@ -33,7 +33,7 @@ class Fuzzgan:
 
         state['renderer']._render_impl(
             res = state['generator_params'],  # res
-            pkl = valid_checkpoints_dict[state['pretrained_weight']],  # pkl
+            pkl = INIT_PKL,  # pkl
             w0_seeds= state['params']['w0_seeds'],  # w0_seed,
             class_idx = state['params']['class_idx'],  # class_idx,
             mixclass_idx = state['params']['mixclass_idx'],  # mix_idx,
@@ -43,7 +43,8 @@ class Fuzzgan:
             to_pil = state['params']['to_pil'],
         )
 
-        self.layers = [[x] for x in range(state['generator_params'].num_ws-1, -1, -1)]
+        # self.layers = [[x] for x in range(state['generator_params'].num_ws-1, -1, -1)]
+        self.layers = [[7], [6], [5], [4], [3], [3,4], [5,6], [3,4,5,6]]
 
         info =  copy.deepcopy(state['params'])
 
@@ -51,7 +52,7 @@ class Fuzzgan:
 
     def generate_dataset(self):
         seed_class = self.seed_class
-        root = f"mnist/eval/HQ/{seed_class}/"
+        root = f"mnist/eval/final/HQ/{seed_class}/"
 
         data_point = 0
         if self.process_count:
@@ -166,19 +167,6 @@ class Fuzzgan:
             self.w0_seed += step_size
 
 
-
-
-valid_checkpoints_dict = {
-    f.split('/')[-1].split('.')[0]: osp.join(CACHE_DIR, f)
-    for f in os.listdir(CACHE_DIR)
-    if (f.endswith('pkl') and osp.exists(osp.join(CACHE_DIR, f)))
-}
-print(f'\nFile under CACHE_DIR ({CACHE_DIR}):')
-print(os.listdir(CACHE_DIR))
-print('\nValid checkpoint file:')
-print(valid_checkpoints_dict)
-
-
 def run_fuzzgan(args):
     seed_class, w0_seed, process_count = args
     print('----------------------------------------------------')
@@ -191,17 +179,20 @@ def run_fuzzgan(args):
     print('###################################################')
 
 if __name__ == "__main__":
-    # fuzzgan = Fuzzgan(process_count=1)
-    # fuzzgan.generate_dataset()
+    fuzzgan = Fuzzgan(seed_class=5)
+    fuzzgan.generate_dataset()
 
-    args_list = []
-    process_count = 5
+    # args_list = []
+    # process_count = 5
 
-    for seed_class in range(10):
-        for w0_seed in range(process_count):
-            args_list.append((seed_class, w0_seed, process_count))
+    # # for seed_class in range(5):
+    # #     for w0_seed in range(process_count):
+    # #         args_list.append((seed_class, w0_seed, process_count))
 
-    print(f"Args List: {args_list}")
-    set_start_method('spawn')
-    with Pool(processes=process_count) as pool:
-        pool.map(run_fuzzgan, args_list, chunksize=1)
+    # for seed_class in range(3):
+    #     args_list.append((seed_class, 0, 1))
+
+    # print(f"Args List: {args_list}")
+    # set_start_method('spawn')
+    # with Pool(processes=process_count) as pool:
+    #     pool.map(run_fuzzgan, args_list, chunksize=1)

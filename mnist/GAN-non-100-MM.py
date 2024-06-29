@@ -4,28 +4,9 @@ from utils import get_distance
 import numpy as np
 import random
 from stylegan.renderer_v2 import Renderer
-from utils import validate_mutation
 
 renderer = Renderer()
 
-def sg_render(state, current_res, second_cls, w_load=None):
-    renderer._render_impl(
-        res=current_res,  # res
-        pkl=INIT_PKL,  # pkl
-        w0_seeds=state['w0_seeds'],
-        w_load = w_load,
-        class_idx=state['class_idx'],
-        mixclass_idx=second_cls,
-        stylemix_idx= state['stylemix_idx'],
-        stylemix_seed=state['stylemix_seed'],
-        trunc_psi=state['trunc_psi'],
-        img_normalize=state['img_normalize'],
-        to_pil=state['to_pil'],
-    )
-    m_image = current_res.image
-    m_image_array = np.array(m_image.crop((2, 2, m_image.width - 2, m_image.height - 2)))
-    current_res.image_array = m_image_array
-    return current_res
 
 def apply_mutoperator1(state, extent=None):
     least_distance = None
@@ -69,31 +50,28 @@ def apply_mutoperator2(state):
 
     if "second_cls" in state["res"]:
         second_cls = state["second_cls"]
-        print("second_cls", second_cls)
     else:
-        # second_cls = random.choices([6, 8, 9], weights=[0.5, 0.25, 0.25])
-        second_cls = random.choices([3, 6, 8, 9])
-        # second_cls = random.randint(0, 9)
-        # second_cls = random.choices([3, 8])
-        print("random")
-        state['stylemix_seed'] = random.randint(0, 350000)
+        second_cls = random.randint(0, 9)
 
     current_res = dnnlib.EasyDict()
-    current_res = sg_render(state, current_res, second_cls, w_load)
-    image_array = state['res'].image_array
-
-    m_image_array = current_res.image_array
-    valid_mutation, ssi, l2_distance, img_l2, m_img_l2 = validate_mutation(image_array, m_image_array)
-    counter = 0
-    while ssi < 0.6 and counter < 500:
-        counter += 1
-        print("Invalid mutation, retrying, ssi: ", ssi)
-        state['stylemix_seed'] = random.randint(0, 350000)
-        current_res = dnnlib.EasyDict()
-        sg_render(state, current_res, second_cls, w_load)
-        m_image_array = current_res.image_array
-        valid_mutation, ssi, l2_distance, img_l2, m_img_l2 = validate_mutation(image_array, m_image_array)
+    renderer._render_impl(
+        res=current_res,  # res
+        pkl=INIT_PKL,  # pkl
+        w0_seeds=state['w0_seeds'],
+        w_load = w_load,
+        class_idx=state['class_idx'],
+        mixclass_idx=second_cls,
+        stylemix_idx= state['stylemix_idx'],
+        stylemix_seed=state['stylemix_seed'],
+        trunc_psi=state['trunc_psi'],
+        img_normalize=state['img_normalize'],
+        to_pil=state['to_pil'],
+    )
+    m_image = current_res.image
+    m_image_array = np.array(m_image.crop((2, 2, m_image.width - 2, m_image.height - 2)))
+    current_res.image_array = m_image_array
     state["m_res"] = current_res
+
     return state
 
 

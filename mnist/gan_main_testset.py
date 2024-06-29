@@ -14,14 +14,12 @@ from individual import Individual
 from config import NGEN, \
     POPSIZE, INITIALPOP, \
     RESEEDUPPERBOUND, GENERATE_ONE_ONLY, DATASET, \
-    STOP_CONDITION, STEPSIZE, DJ_DEBUG, INIT_PKL, GAN_NET_SIZE
+    STOP_CONDITION, STEPSIZE, DJ_DEBUG, INIT_PKL, STYLEGAN_INIT
 
 import dnnlib
 from stylegan.renderer_v2 import Renderer
 import os, json
-# layer_1 = [3, 4, 5, 6]
-layer_1 = [6]
-layer_2 = layer_1
+
 # def generate_dataset():
 #     dataset = []
 #     state_init = STYLEGAN_INIT
@@ -30,17 +28,20 @@ layer_2 = layer_1
 #         dataset.append(init_images(state_init))
 
 # Load the dataset.
-DATASET = 'mnist/original_dataset/5-LQ/'
+DATASET = 'mnist/inv_2/5'
 content = os.listdir(DATASET)
 
 x_test = []
 y_test = []
 for file in content:
-    if file.endswith('.json'):
-        with open(DATASET + file, 'r') as f:
-            params = json.load(f)
-            x_test.append(params)
-            y_test.append(params["class_idx"])
+    if file.endswith('.npy'):
+        print("Loading file: " + file)
+
+        w_load = np.load(os.path.join(DATASET, file))
+        params = STYLEGAN_INIT["params"]
+        params["w_load"] = w_load
+        x_test.append(params)
+        y_test.append(5)
 
 # Fetch the starting seeds from file
 starting_seeds = [i for i in range(len(y_test))]
@@ -60,12 +61,8 @@ def render_seed(state):
     renderer._render_impl(
         res = state['res'],  # res
         pkl = INIT_PKL,  # pkl
-        w0_seeds= state['w0_seeds'],
-        class_idx = state['class_idx'],
-        mixclass_idx = state['mixclass_idx'],
-        stylemix_idx = state['stylemix_idx'],
-        stylemix_seed = state['stylemix_seed'],
-        trunc_psi = state['trunc_psi'],
+        w0_seeds= [[0, 1]],
+        w_load= state['w_load'],  # w_load,
         img_normalize = state['img_normalize'],
         to_pil = state['to_pil'],
     )
@@ -75,24 +72,25 @@ def generate_digit(seed):
     state = x_test[int(seed)]
     label = y_test[int(seed)]
     state["res"] = dnnlib.EasyDict()
+    state["class_idx"] = label
     # state["renderer"] = renderer
     state = render_seed(state)
     image = state['res'].image
     image_array = np.array(image.crop((2, 2, image.width - 2, image.height - 2)))
     state["res"].image_array = image_array
-    label = state["class_idx"]
     return MnistMember(state, label, seed)
 
 
-def ind_from_seed(seed, stylemix_idx=layer_1):
+def ind_from_seed(seed):
     stylemix_seed = random.randint(0, 350000)
+    stylemix_idx = 7
     Individual.COUNT += 1
     digit1 = generate_digit(seed)
 
     digit2 = digit1.clone()
 
+    digit2.state['stylemix_idx'] = [stylemix_idx]
     digit2.state['stylemix_seed'] = stylemix_seed
-    digit2.state['stylemix_idx'] = stylemix_idx
     distance_inputs = DigitMutator(digit2).mutate()
 
     individual = creator.Individual(digit1, digit2)
@@ -100,8 +98,7 @@ def ind_from_seed(seed, stylemix_idx=layer_1):
     individual.seed = seed
     return individual
 
-
-def generate_individual(stylemix_idx=None):
+def generate_individual():
     if INITIALPOP == 'seeded':
         # Choose sequentially the inputs from the seed list.
         # NOTE: number of seeds should be no less than the initial population
@@ -114,8 +111,7 @@ def generate_individual(stylemix_idx=None):
         seed = random.choice(starting_seeds)
         Individual.SEEDS.add(seed)
 
-    individual = ind_from_seed(seed, stylemix_idx=stylemix_idx)
-
+    individual = ind_from_seed(seed)
     return individual
 
 
@@ -192,14 +188,7 @@ def main(rand_seed=None):
 
     # Generate initial population.
     print("### Initializing population ....")
-    population = []
-    for i in range(POPSIZE):
-        stylemix_idx = layer_2
-        population.append(generate_individual(stylemix_idx))
-        # for idx in range(4,8):
-        #     # stylemix_idx = [idx]
-
-    print("### Population size: " + str(len(population)))
+    population = toolbox.population(n=POPSIZE)
 
     # Evaluate the individuals with an invalid fitness.
     # Note: the fitnesses are all invalid before the first iteration since they have not been evaluated

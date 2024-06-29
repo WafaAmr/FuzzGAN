@@ -1,6 +1,6 @@
 import numpy as np
 
-from utils import reshape
+from utils import reshape, get_distance
 
 
 def get_mindist_seed(solution, dataset):
@@ -15,7 +15,8 @@ def get_mindist_seed(solution, dataset):
             misclassified_member = ind.m1.purified
         else:
             misclassified_member = ind.m2.purified
-        dist = np.linalg.norm(misclassified_member - seed)
+        # dist = np.linalg.norm(misclassified_member - seed)
+        dist = get_distance(misclassified_member , seed)
         min_distances.append(dist)
     mindist = np.mean(min_distances)
     return mindist
@@ -26,7 +27,7 @@ def get_radius_reference(solution, reference):
     min_distances = list()
     for sol in solution:
         digit = sol.purified
-        dist = np.linalg.norm(digit - reference)
+        dist = np.linalg.norm(digit/255 - reference)
         min_distances.append(dist)
     mindist = np.mean(min_distances)
     return mindist
@@ -39,7 +40,8 @@ def get_diameter(solution):
         maxdist = float(0)
         for d2 in solution:
             if d1 != d2:
-                dist = np.linalg.norm(d1.purified - d2.purified)
+                # dist = np.linalg.norm(d1.purified - d2.purified)
+                dist = get_distance(d1.purified, d2.purified)
                 if dist > maxdist:
                     maxdist = dist
         max_distances.append(maxdist)

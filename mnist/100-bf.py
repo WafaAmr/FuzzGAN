@@ -14,7 +14,7 @@ from multiprocessing import Process, set_start_method
 
 class Fuzzgan:
 
-    def __init__(self, w0_seed=0, stylemix_seed=0, search_limit=SEARCH_LIMIT , process_count=None):
+    def __init__(self, w0_seed=3, stylemix_seed=0, search_limit=SEARCH_LIMIT , process_count=None):
         self.state = STYLEGAN_INIT
         self.mix_state = None
         self.dataset = []
@@ -42,8 +42,7 @@ class Fuzzgan:
             to_pil = state['params']['to_pil'],
         )
 
-        # self.layers = [[x] for x in range(state['generator_params'].num_ws-1, -1, -1)]
-        self.layers = [[7], [6], [5], [4], [3], [5,6], [3,4], [3,4,5,6]]
+        self.layers = [[7], [6], [5], [4], [4,5], [4,6], [5,6], [4,5,6], [3,4,5,6]]
 
         info =  copy.deepcopy(state['params'])
 
@@ -51,7 +50,7 @@ class Fuzzgan:
 
     def generate_dataset(self):
         digit_class = 5
-        root = f"mnist/eval/final/single2/{digit_class}/"
+        root = f"mnist/eval/100/{digit_class}/"
 
         data_point = 0
         if self.process_count:
@@ -63,7 +62,7 @@ class Fuzzgan:
             state = self.state
 
             state["params"]["class_idx"] = digit_class
-            state["params"]["w0_seeds"] = [[23970, 1.0]]
+            state["params"]["w0_seeds"] = [[self.w0_seed, 1.0]]
             state["params"]["stylemix_idx"] = []
             state["params"]["mixclass_idx"] = None
             state["params"]["stylemix_seed"] = None
@@ -90,10 +89,16 @@ class Fuzzgan:
             if accepted:
                 _ , second_cls = np.argsort(-predictions)[:2]
                 second_cls_confidence = predictions[second_cls]
-                if second_cls_confidence:
+                print(predictions)
+                # if second_cls_confidence:
+                if True:
+                    print("in")
                     data_point += 1
-                    for stylemix_cls, cls_confidence in enumerate(predictions):
-                        if stylemix_cls != label and cls_confidence:
+                    # for stylemix_cls, cls_confidence in enumerate(predictions):
+                    for stylemix_cls in [3, 6, 8, 9]:
+                    # for stylemix_cls in [6, 8]:
+                        # if stylemix_cls != label and cls_confidence:
+                        if stylemix_cls != label:
                             # found mutation below threshold
                             found_mutation = False
                             tried_all_layers = False
@@ -101,7 +106,8 @@ class Fuzzgan:
 
                             state["params"]["mixclass_idx"] = stylemix_cls
                             self.stylemix_seed = 0
-                            while not found_mutation and not tried_all_layers and self.stylemix_seed < self.stylemix_seed_limit:
+                            # while not found_mutation and not tried_all_layers and self.stylemix_seed < self.stylemix_seed_limit:
+                            while not found_mutation and not tried_all_layers and self.stylemix_seed < 1000:
 
                                 # require unique seed for each stylemix
                                 if self.stylemix_seed == self.w0_seed:
@@ -138,7 +144,7 @@ class Fuzzgan:
                                             with open(f"{path}/{seed_name}.json", 'w') as f:
                                                 (json.dump(digit_info, f, sort_keys=True, indent=4))
 
-                                        if ssi > .95 and l2_distance > 6500:
+                                        if valid_mutation:
                                             found_mutation = True
 
                                             m_digit_info["accepted"] = m_accepted.tolist()
@@ -157,7 +163,8 @@ class Fuzzgan:
                                                 (json.dump(m_digit_info, f, sort_keys=True, indent=4))
                                             m_image.save(f"{m_path}/{m_name}.png")
                                         else:
-                                            if not best_found or ssi < best_found["ssi"]:
+                                            # if not best_found or ssi > best_found["ssi"]:
+                                            if not best_found or (l2_distance < best_found["l2_distance"] and ssi > 0.5):
                                                 best_found =  copy.deepcopy(m_digit_info)
                                                 best_found["accepted"] = m_accepted.tolist()
                                                 best_found["predicted-class"] = m_class.tolist()
@@ -170,7 +177,7 @@ class Fuzzgan:
                                         tried_all_layers = True
                                         break
                                 self.stylemix_seed += 1
-                            if not found_mutation:
+                            if not found_mutation and best_found:
                                 l2_distance = best_found["l2_distance"]
                                 ssi = best_found["ssi"]
                                 stylemix_seed = best_found["stylemix_seed"]
@@ -185,7 +192,6 @@ class Fuzzgan:
                                     (json.dump(best_found, f, sort_keys=True, indent=4))
                                 m_image.save(f"{m_path}/{m_name}.png")
             self.w0_seed += step_size
-
 
 
 

@@ -16,24 +16,35 @@ from individual import Individual
 from config import NGEN, \
     POPSIZE, INITIALPOP, \
     RESEEDUPPERBOUND, GENERATE_ONE_ONLY, DATASET, \
-    STOP_CONDITION, STEPSIZE, DJ_DEBUG
-
-from config import STYLEGAN_INIT
-from seed_utils import init_images
-
-# def generate_dataset():
-#     dataset = []
-#     state_init = STYLEGAN_INIT
-#     for i in range(POPSIZE):
-#         state_init['params']['seed'] = i
-#         dataset.append(init_images(state_init))
+    STOP_CONDITION, STEPSIZE, DJ_DEBUG, INIT_PKL
+import os, json
+from stylegan.renderer_v2 import Renderer
+import dnnlib
+from PIL import Image
 
 # Load the dataset.
-hf = h5py.File(DATASET, 'r')
-x_test = hf.get('xn')
-x_test = np.array(x_test)
-y_test = hf.get('yn')
-y_test = np.array(y_test)
+DATASET = 'mnist/original_dataset/5-HQ/'
+content = os.listdir(DATASET)
+
+x_test = []
+y_test = []
+for file in content:
+    if file.endswith('.png'):
+        f = os.path.join(DATASET, file)
+        img = Image.open(f)
+        # img_array = np.array(img)
+        # params = json.load(f)
+
+        x_test.append(img)
+        y_test.append(5)
+
+
+# Load the dataset.
+# hf = h5py.File(DATASET, 'r')
+# x_test = hf.get('xn')
+# x_test = np.array(x_test)
+# y_test = hf.get('yn')
+# y_test = np.array(y_test)
 
 # Fetch the starting seeds from file
 starting_seeds = [i for i in range(len(y_test))]
@@ -47,18 +58,33 @@ creator.create("FitnessMulti", base.Fitness, weights=(1.0, -1.0))
 # Define the individual.
 creator.create("Individual", Individual, fitness=creator.FitnessMulti)
 
+renderer = Renderer()
+
+def render_seed(state):
+    renderer._render_impl(
+        res = state['res'],  # res
+        pkl = INIT_PKL,  # pkl
+        w0_seeds= state['w0_seeds'],
+        class_idx = state['class_idx'],
+        mixclass_idx = state['mixclass_idx'],
+        stylemix_idx = state['stylemix_idx'],
+        stylemix_seed = state['stylemix_seed'],
+        trunc_psi = state['trunc_psi'],
+        img_normalize = state['img_normalize'],
+        to_pil = state['to_pil'],
+    )
+    return state
 
 def generate_digit(seed):
-    # print("Generating digit from seed: " + str(seed))
-    # state_init = STYLEGAN_INIT
-    # state_init['params']['seed'] = seed
-    # state = init_images(state_init)
-    # seed_image = state['images']['image_orig']
-    # label = state['params']['class_idx']
-    # --------------------------------------------------
-    seed_image = x_test[int(seed)]
+    image = x_test[int(seed)]
     label = y_test[int(seed)]
-    xml_desc = vectorization_tools.vectorize(seed_image)
+    # state["res"] = dnnlib.EasyDict()
+    # state["renderer"] = renderer
+    # state = render_seed(state)
+    # image = state['res'].image
+    image_array = np.array(image.crop((2, 2, image.width - 2, image.height - 2)))
+    # state["res"].image_array = image_array
+    xml_desc = vectorization_tools.vectorize(image_array)
     return MnistMember(xml_desc, label, seed)
 
 

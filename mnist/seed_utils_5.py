@@ -9,7 +9,7 @@ from PIL import Image
 
 import dnnlib
 from stylegan.renderer_v2 import Renderer
-from config import CACHE_DIR, STYLEGAN_INIT, SEARCH_LIMIT
+from config import STYLEGAN_INIT, SEARCH_LIMIT, INIT_PKL
 from predictor import Predictor
 import pickle
 from utils import get_distance
@@ -29,6 +29,7 @@ class Fuzzgan:
         self.distance_limit = distance_limit
         self.layers = None
         self.threads = threads
+        self.state['renderer'] = Renderer()
 
     def generate_seed(self, state=None):
         if state is None:
@@ -36,12 +37,13 @@ class Fuzzgan:
 
         state['renderer']._render_impl(
             res = state['generator_params'],  # res
-            pkl = valid_checkpoints_dict[state['pretrained_weight']],  # pkl
+            pkl = INIT_PKL,  # pkl
             w0_seeds= state['params']['w0_seeds'],  # w0_seed,
             class_idx = state['params']['class_idx'],  # class_idx,
             mixclass_idx = state['params']['mixclass_idx'],  # mix_idx,
             stylemix_idx = state['params']['stylemix_idx'],  # stylemix_idx,
             stylemix_seed = state['params']['stylemix_seed'],  # stylemix_seed,
+            trunc_psi = state['params']['trunc_psi'],  # trunc_psi,
             img_normalize = state['params']['img_normalize'],
             to_pil = state['params']['to_pil'],
         )
@@ -55,7 +57,7 @@ class Fuzzgan:
         return state, info
 
     def generate_dataset(self):
-        self.w0_seed =  298299 # 53029 # 53034
+        self.w0_seed =  0 # 53029 # 53034
         self.stylemix_seed = 0
 
         data_point = 0
@@ -124,7 +126,7 @@ class Fuzzgan:
                                     distance = get_distance(np.array(image), np.array(m_image))
 
                                     if not m_accepted and 0 < distance < self.distance_limit:
-                                        path = f"mnist/search2/{self.w0_seed}/"
+                                        path = f"mnist/11-05/{self.w0_seed}/"
                                         seed_name = f"0-{second_cls}"
                                         os.makedirs(path, exist_ok=True)
                                         image.save(f"{path}/{seed_name}.png")
@@ -150,20 +152,13 @@ class Fuzzgan:
                                                 (json.dump(m_digit_info, f, sort_keys=True, indent=4))
                                             m_image.save(f"{non_optimal_path}/{non_optimal_name}.png")
                                 self.stylemix_seed += 1
+                else:
+                    trunc_psi = state["params"]["trunc_psi"]
             self.w0_seed += step_size
 
 
 
 
-valid_checkpoints_dict = {
-    f.split('/')[-1].split('.')[0]: osp.join(CACHE_DIR, f)
-    for f in os.listdir(CACHE_DIR)
-    if (f.endswith('pkl') and osp.exists(osp.join(CACHE_DIR, f)))
-}
-print(f'\nFile under CACHE_DIR ({CACHE_DIR}):')
-print(os.listdir(CACHE_DIR))
-print('\nValid checkpoint file:')
-print(valid_checkpoints_dict)
 
 if __name__ == "__main__":
     fuzzgan = Fuzzgan(threads=5)

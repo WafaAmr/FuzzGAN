@@ -14,15 +14,16 @@ TEST_IMAGES = '/home/upc/datasets/t10k-images-idx3-ubyte.gz'
 TEST_LABELS = '/home/upc/datasets/t10k-labels-idx1-ubyte.gz'
 
 # SEARCH_LIMIT = 100
-SSIM_THRESHOLD = 0.95
-L2_RANGE = 0.2
+# SSIM_THRESHOLD = 0.95
+# L2_RANGE = 0.2
 # STYLEMIX_SEED_LIMIT = 100
-# SSIM_THRESHOLD = 0.75
+SSIM_THRESHOLD = 0.75
 # L2_RANGE = 0.25
-SEARCH_LIMIT = 100
+SEARCH_LIMIT = 10
 # SSIM_THRESHOLD = 0.65
-# L2_RANGE = 1
-STYLEMIX_SEED_LIMIT = 100
+L2_RANGE = 1
+STYLEMIX_SEED_LIMIT = 500
+
 STYLEGAN_INIT = {
     "generator_params": dnnlib.EasyDict(),
     "params": {
@@ -60,9 +61,9 @@ DJ_DEBUG = 1
 POPSIZE = 100
 
 STOP_CONDITION = "iter"
-# STOP_CONDITION = "time"
+#STOP_CONDITION = "time"
 
-NGEN = 10
+NGEN = 1000
 RUNTIME = 3600
 STEPSIZE = 10
 # Mutation Hyperparameters
@@ -95,7 +96,6 @@ num_classes = 10
 # INITIALPOP = 'seeded'
 INITIALPOP = 'random'
 
-# GENERATE_ONE_ONLY = False
 GENERATE_ONE_ONLY = True
 
 MODEL = 'mnist/models/cnnClassifier_lowLR.h5'

@@ -13,13 +13,16 @@ from config import IMG_SIZE, SSIM_THRESHOLD, L2_RANGE
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 
+import torch
+from PIL import Image
+
 # load the MNIST dataset
 mnist = keras.datasets.mnist
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
 
 def get_distance(v1, v2):
-    return np.linalg.norm(v1 - v2)
+    return np.linalg.norm(v1/255 - v2/255)
 
 def get_ssim(img_array, m_img_array, data_range=255):
     return ssim(img_array, m_img_array, data_range=data_range) * 100
@@ -32,6 +35,14 @@ def validate_mutation(img_array, m_img_array):
     # valid_mutation = img_l2 * (1 - L2_RANGE) <= m_img_l2 <= img_l2 * (1 + L2_RANGE) and ssi > SSIM_THRESHOLD
     valid_mutation = 0 < distance < img_l2 * (1 + L2_RANGE) and ssi >= SSIM_THRESHOLD
     return valid_mutation, ssi, distance, img_l2, m_img_l2
+
+def make_image(inversed_img, img_scale_db = 0):
+    inversed_img = inversed_img.squeeze()  # Remove singleton dimensions
+    inversed_img = inversed_img / inversed_img.norm(float('inf'), dim=[0,1], keepdim=True).clip(1e-8, 1e8)
+    inversed_img = inversed_img * (10 ** (img_scale_db / 20))
+    inversed_img = (inversed_img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+    inversed_img = Image.fromarray(inversed_img.cpu().numpy())
+    return inversed_img
 
 def print_archive(archive):
     dst = Folder.DST_ARC + "_DJ"

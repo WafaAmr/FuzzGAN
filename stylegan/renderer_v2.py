@@ -145,8 +145,8 @@ class Renderer:
             res.error = CapturedException()
         if not self._disable_timing:
             self._end_event.record(torch.cuda.current_stream(self._device))
-        if 'image' in res:
-            res.image = self.to_cpu(res.image).numpy()
+        # if 'image' in res:
+        #     res.image = self.to_cpu(res.image).numpy()
         if 'stats' in res:
             res.stats = self.to_cpu(res.stats).numpy()
         if 'error' in res:
@@ -233,6 +233,7 @@ class Renderer:
         pkl             = None,
         w0_seeds        = [[0, 1]],
         w_load          = None,
+        w_load_seed     = None,
         class_idx       = None,
         mixclass_idx    = None,
         stylemix_idx    = [],
@@ -251,6 +252,9 @@ class Renderer:
         input_transform = None,
         untransform     = False,
     ):
+        # print(f"trunc_psi: {trunc_psi}")
+        # print(f"trunc_cutoff: {trunc_cutoff}")
+
 
         # Dig up network details.
         G = self.get_network(pkl, 'G_ema')
@@ -306,7 +310,7 @@ class Renderer:
         else:
             all_cs = w0_cs
 
-        print(f"class: {class_idx}, w0_seed: {w0_seeds[0][0]}, mixclass_idx:{mixclass_idx} , stylemix_seed:{stylemix_seed}, stylemix_idx:{stylemix_idx}")
+        print(f"class: {class_idx}, w0_seed: {w0_seeds}, mixclass_idx:{mixclass_idx} , stylemix_seed:{stylemix_seed}, stylemix_idx:{stylemix_idx}")
         # print(f"all_cs: {all_cs}")
 
         all_zs = np.zeros([len(all_seeds), G.z_dim], dtype=np.float32)
@@ -326,14 +330,16 @@ class Renderer:
             all_cs = self.to_device(torch.from_numpy(all_cs))
             if w_load is not None:
                 w_load = self.to_device(torch.from_numpy(w_load)).squeeze(0)
-
         all_ws = G.mapping(z=all_zs, c=all_cs, truncation_psi=trunc_psi, truncation_cutoff=trunc_cutoff) - w_avg
         all_ws = dict(zip(all_seeds, all_ws))
 
         if w_load is not None:
             for seed, old_w in all_ws.items():
                 if seed in w0_zs_seeds:
-                    all_ws[seed] = w_load
+                    if w_load_seed is not None and seed == w_load_seed:
+                        all_ws[seed] = w_load
+                    elif w_load_seed is None:
+                        all_ws[seed] = w_load
 
         # Calculate final W.
         w = torch.stack([all_ws[seed] * weight for seed, weight in w0_seeds]).sum(dim=0, keepdim=True)

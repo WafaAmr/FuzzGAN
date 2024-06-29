@@ -1,6 +1,6 @@
 import random
-import mutation_manager
-from mnist_member import MnistMember
+import gan_mutation_manager
+from gan_mnist_member import MnistMember
 from config import MUTOPPROB
 from utils import get_distance
 
@@ -24,20 +24,21 @@ class DigitMutator:
         distance_inputs = 0
         while condition:
             counter_mutations += 1
-            mutant = mutation_manager.mutate(self.digit.state, mutation)
+            mutant = gan_mutation_manager.mutate(self.digit.state, mutation)
+            m_image_array = mutant["m_res"].image_array
 
-            distance_inputs = get_distance(self.digit.purified, mutant.purified)
+            distance_inputs = get_distance(self.digit.purified, m_image_array)
 
             if distance_inputs != 0:
                 if reference is not None:
-                    distance_inputs = get_distance(reference.purified, mutant.purified)
+                    distance_inputs = get_distance(reference.purified, m_image_array)
                     if distance_inputs != 0:
                         condition = False
                 else:
                     condition = False
 
-        self.digit.state = mutant.state
-        self.digit.purified = mutant.purified
+        self.digit.state = mutant
+        self.digit.purified = m_image_array
         self.digit.predicted_label = None
         self.digit.confidence = None
         self.digit.correctly_classified = None
@@ -57,7 +58,7 @@ class DigitMutator:
         distance_inputs = 0
         while condition:
             counter_mutations += 1
-            mutant1, mutant2 = mutation_manager.generate(
+            mutant1, mutant2 = gan_mutation_manager.generate(
                 self.digit.state,
                 mutation)
 

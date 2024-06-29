@@ -1,233 +1,152 @@
 import os
 import os.path as osp
-import copy
-import json
 import numpy as np
 from PIL import Image
 from stylegan.renderer_v2 import Renderer
 from config import STYLEGAN_INIT, SEARCH_LIMIT, STYLEMIX_SEED_LIMIT, SSIM_THRESHOLD, INIT_PKL
 from predictor import Predictor
 from utils import validate_mutation
-import pickle
 import dnnlib
-from multiprocessing import Process, set_start_method
-import random
+from multiprocessing import Process, Pool, set_start_method
+from stylegan.renderer_v2 import Renderer
 
-class Fuzzgan:
 
-    def __init__(self, w0_seed=0, stylemix_seed=0, search_limit=SEARCH_LIMIT , process_count=None):
+class Dlmimic:
+    def __init__(self):
         self.state = STYLEGAN_INIT
-        self.mix_state = None
-        self.dataset = []
-        self.search_limit = search_limit
-        self.w0_seed = w0_seed
-        # self.stylemix_seed = stylemix_seed
-        self.stylemix_seed_limit = STYLEMIX_SEED_LIMIT
-        self.layers = None
-        self.process_count = process_count
         self.state['renderer'] = Renderer()
+        self.layers = [[7], [6], [5], [4], [3], [5,6], [3,4], [3,4,5,6], [3,4,5,6,7]]
+        self.con_class = {0:[6,8], 1:[4,8], 2:[8,4], 3:[5,2], 4:[9,6], 5:[6,8], 6:[0,4,8], 7:[2,4], 8:[6,9], 9:[4,8]}
 
-    def generate_seed(self, state=None):
-        if state is None:
-            state = self.state
-        renderer = Renderer()
-        renderer._render_impl(
-        # state['renderer']._render_impl(
-            res = state['generator_params'],  # res
-            pkl = INIT_PKL,  # pkl
-            w0_seeds= state['params']['w0_seeds'],  # w0_seed,
-            w_load = state['params']['w_load'],  # w_load,
-            w_load_seed = state['params']['w_load_seed'],  # w_load_seed,
-            class_idx = state['params']['class_idx'],  # class_idx,
-            mixclass_idx = state['params']['mixclass_idx'],  # mix_idx,
-            stylemix_idx = state['params']['stylemix_idx'],  # stylemix_idx,
-            stylemix_seed = state['params']['stylemix_seed'],  # stylemix_seed,
-            img_normalize = state['params']['img_normalize'],
-            to_pil = state['params']['to_pil'],
-        )
-
-        # import itertools
-        # self.layers = [list(comb) for r in range(9) for comb in itertools.combinations(range(8), r)]
-
-        # self.layers = [[x] for x in range(4, state['generator_params'].num_ws)]
-        self.layers = [[7], [6], [5], [4], [4,5], [4,6], [5,6], [4,5,6], [3,4,5,6]]
-
-        info =  copy.deepcopy(state['params'])
-
-        return state, info
-
-    def generate_dataset(self):
-        digit_class = 8
-        root = f"mnist/eval/testset_bf/{digit_class}/"
-        w_path = "mnist/inv_2/8/0-inv.npy"
-        w_load = np.load(w_path)
-
-        data_point = 0
-        if self.process_count:
-            step_size =  self.process_count
-        else:
-            step_size = 1
-
+    def search(self, seed_class, w_path):
+        seed_class = int(seed_class)
         state = self.state
+        root = f"mnist/eval/final/inv/{seed_class}/"
 
-        state["params"]["class_idx"] = digit_class
-        state["params"]["w0_seeds"] = [[0, 1]]
-        state["params"]["w_load"] = w_load
-        state["params"]["w_load_seed"] = digit_class
-        state["params"]["stylemix_idx"] = []
-        state["params"]["mixclass_idx"] = None
-        state["params"]["stylemix_seed"] = None
+        res = dnnlib.EasyDict()
+        w_load = np.load(w_path)
+        print(f"Loading {seed_class}")
+        state['renderer']._render_impl(
+                    res = res,  # res
+                    pkl = INIT_PKL,
+                    w0_seeds= state['params']['w0_seeds'],
+                    w_load = w_load,
+                    class_idx = seed_class,
+                    mixclass_idx = seed_class,
+                    stylemix_idx = state['params']['stylemix_idx'],
+                    stylemix_seed = state['params']['stylemix_seed'],
+                    img_normalize = state['params']['img_normalize'],
+                    to_pil = state['params']['to_pil'],
+                )
 
-        digit, digit_info = self.generate_seed()
-
-
-        label = digit["params"]["class_idx"]
-        image = digit['generator_params'].image
-        image = image.crop((2, 2, image.width - 2, image.height - 2))
-        # os.makedirs(f'{root}seed/', exist_ok=True)
-        # image.save(f"{root}seed/{self.w0_seed}.png")
+        inversed_img = res.image
+        image = inversed_img.crop((2, 2, inversed_img.width - 2, inversed_img.height - 2))
         image_array = np.array(image)
+        w = res.w
 
-        accepted, confidence, predictions = Predictor().predict_datapoint(
-            np.reshape(image_array, (-1, 28, 28, 1)),
-            label
-        )
-        print(predictions)
+        file_id = osp.basename(w_path).split('-')[0]
+        img_path = osp.join(root, f'{file_id}.png')
 
-        digit_info["accepted"] = accepted.tolist()
-        digit_info["exp-confidence"] = float(confidence)
-        digit_info["predictions"] = predictions.tolist()
-
-        path = f"{root}{self.w0_seed}/"
-        seed_name = f"0"
-        img_path = f"{path}/{seed_name}.png"
-        if not os.path.exists(img_path):
-            os.makedirs(path, exist_ok=True)
+        print(f"Saving {img_path}")
+        if not osp.exists(img_path):
+            os.makedirs(root, exist_ok=True)
             image.save(img_path)
-            img_l2 = np.linalg.norm(image_array)
 
-            digit_info["l2_norm"] = img_l2
-            if "w_load" in digit_info:
-                del digit_info["w_load"]
-            with open(f"{path}/{seed_name}.json", 'w') as f:
-                json.dump(digit_info, f, sort_keys=True, indent=4)
-        for stylemix_cls in range(10):
+            m_classes = [{} for _ in range(10)]
+            for stylemix_class in range(10):
 
-            found_mutation = False
-            tried_all_layers = False
-            best_found = {}
+                state["params"]["mixclass_idx"] = stylemix_class
+                stylemix_seed = 1
 
-            state["params"]["mixclass_idx"] = stylemix_cls
-            # state["params"]["w0_seeds"] = [[0, 0.9], [1, 0.1]]
+                while stylemix_seed < 100:
 
-            self.stylemix_seed = 0
-            while not found_mutation and not tried_all_layers and self.stylemix_seed < self.stylemix_seed_limit:
+                    # require unique seed for each stylemix
+                    # r_seed = random.randint(0, 350000)
+                    r_seed = stylemix_seed
+                    state["params"]["stylemix_seed"] = r_seed
 
-                # require unique seed for each stylemix
-                if self.stylemix_seed == self.w0_seed:
-                    self.stylemix_seed += 1
-                state["params"]["stylemix_seed"] = self.stylemix_seed
-                # state["params"]["class_idx"] = [digit_class, digit_class]
-                # state["params"]["w0_seeds"] = [[0, 0.5], [self.w0_seed, 0.5]]
+                    for idx, layer in enumerate(self.layers):
+                        state["params"]["stylemix_idx"] = layer
+
+                        state['renderer']._render_impl(
+                                    res = res,  # res
+                                    pkl = INIT_PKL,
+                                    w0_seeds= state['params']['w0_seeds'],
+                                    w_load = w,
+                                    class_idx = seed_class,
+                                    mixclass_idx = state['params']['mixclass_idx'],
+                                    stylemix_idx = state['params']['stylemix_idx'],
+                                    stylemix_seed = state['params']['stylemix_seed'],
+                                    img_normalize = state['params']['img_normalize'],
+                                    to_pil = state['params']['to_pil'],
+                                )
 
 
-                for idx, layer in enumerate(self.layers):
-                    state["params"]["stylemix_idx"] = layer
+                        m_image = res.image
+                        m_image = m_image.crop((2, 2, m_image.width - 2, m_image.height - 2))
+                        m_image_array = np.array(m_image)
 
-                    m_digit, m_digit_info = self.generate_seed()
-                    m_image = m_digit['generator_params'].image
-                    # os.makedirs(f'{root}{stylemix_cls}/', exist_ok=True)
-                    # m_image.save(f"{root}{stylemix_cls}/current-{self.stylemix_seed}.png")
-                    m_image = m_image.crop((2, 2, m_image.width - 2, m_image.height - 2))
-                    m_image_array = np.array(m_image)
-                    print(np.linalg.norm(image_array - m_image_array))
-
-                    m_accepted, confidence , m_predictions = Predictor().predict_datapoint(
-                        np.reshape(m_image_array, (-1, 28, 28, 1)),
-                        label
-                    )
-                    print(predictions)
-
-                    m_class = np.argsort(-m_predictions)[:1]
-                    if not m_accepted and stylemix_cls == m_class:
+                        m_accepted, confidence , m_predictions = Predictor().predict_datapoint(
+                            np.reshape(m_image_array, (-1, 28, 28, 1)),
+                            seed_class
+                        )
+                        m_class = np.argsort(-m_predictions)[:1]
 
                         valid_mutation, ssi, l2_distance, img_l2, m_img_l2 = validate_mutation(image_array, m_image_array)
+                        if m_class != seed_class:
+                            print(f'{file_id}:{stylemix_class}_{stylemix_seed}_{r_seed}:{layer[0]}, {int(l2_distance)}, {int(ssi*100)} {m_class}')
 
-                        if valid_mutation:
-                            found_mutation = True
-
-                            m_digit_info["accepted"] = m_accepted.tolist()
-                            m_digit_info["predicted-class"] = m_class.tolist()
-                            m_digit_info["exp-confidence"] = float(confidence)
-                            m_digit_info["predictions"] = m_predictions.tolist()
-                            m_digit_info["ssi"] = float(ssi)
-                            m_digit_info["l2_norm"] = m_img_l2
-                            m_digit_info["l2_distance"] = l2_distance
-
-
-                            m_path = f"{path}/{stylemix_cls}"
-                            m_name = f"/{int(l2_distance)}-{int(ssi * 100)}-{self.stylemix_seed}-{stylemix_cls}-{layer[0]}-{m_class}"
-                            os.makedirs(m_path, exist_ok=True)
-                            if "w_load" in m_digit_info:
-                                del m_digit_info["w_load"]
-                            with open(f"{m_path}/{m_name}.json", 'w') as f:
-                                (json.dump(m_digit_info, f, sort_keys=True, indent=4))
-                            m_image.save(f"{m_path}/{m_name}.png")
-                        else:
-                            if not best_found or l2_distance < best_found["l2_distance"]:
-                                best_found =  copy.deepcopy(m_digit_info)
-                                best_found["accepted"] = m_accepted.tolist()
-                                best_found["predicted-class"] = m_class.tolist()
-                                best_found["exp-confidence"] = float(confidence)
-                                best_found["predictions"] = m_predictions.tolist()
-                                best_found["ssi"] = float(ssi)
-                                best_found["l2_norm"] = m_img_l2
-                                best_found["l2_distance"] = l2_distance
-                    if idx == len(self.layers) and found_mutation:
-                        tried_all_layers = True
-                        break
-                self.stylemix_seed += 1
-                self.w0_seed += step_size
-            if not found_mutation and best_found:
-                l2_distance = best_found["l2_distance"]
-                ssi = best_found["ssi"]
-                stylemix_seed = best_found["stylemix_seed"]
-                stylemix_cls = best_found["mixclass_idx"]
-                layer = best_found["stylemix_idx"]
-                m_class = best_found["predicted-class"]
-
-                m_path = f"{path}/{stylemix_cls}/bf/"
-                m_name = f"/{int(l2_distance)}-{int(ssi * 100)}-{stylemix_seed}-{stylemix_cls}-{layer[0]}-{m_class}"
-                os.makedirs(m_path, exist_ok=True)
-                if "w_load" in best_found:
-                    del best_found["w_load"]
-                with open(f"{m_path}/{m_name}.json", 'w') as f:
-                    (json.dump(best_found, f, sort_keys=True, indent=4))
-                m_image.save(f"{m_path}/{m_name}.png")
+                        if m_classes[m_class[0]] == {} or m_classes[m_class[0]]['l2'] > l2_distance:
+                            m_classes[m_class[0]]['image'] = m_image
+                            m_classes[m_class[0]]['ssi'] = ssi
+                            m_classes[m_class[0]]['l2'] = l2_distance
+                            m_classes[m_class[0]]['stylemix_seed'] = stylemix_seed
+                            m_classes[m_class[0]]['stylemix_idx'] = layer[0]
 
 
 
+                    stylemix_seed += 1
+            for m_class, data in enumerate(m_classes):
+                if data != {} and m_class != seed_class:
+                    ssi = data['ssi']
+                    if ssi > .1:
+                        m_image = data['image']
+                        l2_distance = data['l2']
+                        stylemix_seed = data['stylemix_seed']
+                        layer = data['stylemix_idx']
+                        m_path = osp.join(root, file_id, str(m_class))
+                        m_name = f"/{int(l2_distance)}-{int(ssi * 100)}-{stylemix_seed}-{layer}-{m_class}"
+                        os.makedirs(m_path, exist_ok=True)
+                        m_image.save(f"{m_path}/{m_name}.png")
+            del renderer
+            del res
 
-def run_fuzzgan(w0_seed, process_count):
-    print(f'Running Fuzzgan with w0_seed: {w0_seed}, process_count: {process_count}')
-    search_limit = SEARCH_LIMIT / process_count
-    Fuzzgan(w0_seed=w0_seed, search_limit=search_limit, process_count=process_count).generate_dataset()
+
+
+def run_dlmimic(args):
+    print(f"Processing {args}")
+    seed_class, w_path = args
+    dl = Dlmimic()
+    dl.search(seed_class, w_path)
 
 if __name__ == "__main__":
-    fuzzgan = Fuzzgan()
-    fuzzgan.generate_dataset()
+    run_dlmimic((0, "/home/upc/Desktop/FuzzGAN/mnist/inv_2/0/0-inv.npy"))
+    # dlmimic((0, "/home/upc/Desktop/FuzzGAN/mnist/inv_2/0/1-inv.npy"))
+    # args_list = []
+    # process_count = 2
 
-    # # Set the start method to 'spawn'
+    # root_path = "/home/upc/Desktop/FuzzGAN/mnist/inv_2/"
+    # digit_classes = [f for f in os.listdir(root_path) if osp.isdir(osp.join(root_path, f))]
+    # for digit_class in digit_classes[:1]:
+    #     digit_class_path = osp.join(root_path, digit_class)
+    #     for file in os.listdir(digit_class_path):
+    #         if file.endswith(".npy"):
+    #             w_path = osp.join(digit_class_path, file)
+    #             args_list.append((digit_class, w_path))
+
+
+
+    # # print(f"Args List: {args_list}")
     # set_start_method('spawn')
-    # # Create processes
-    # process_count = 5
-    # process_list = zip(range(process_count), [process_count] * process_count)
-    # processes = [Process(target=run_fuzzgan, args=(w0_seed, p_count)) for w0_seed, p_count in process_list]
-
-    # # Start processes
-    # for process in processes:
-    #     process.start()
-
-    # # Wait for all processes to complete
-    # for process in processes:
-    #     process.join()
+    # with Pool(processes=process_count) as pool:
+    #     result = pool.map(run_dlmimic, args_list, chunksize=1)

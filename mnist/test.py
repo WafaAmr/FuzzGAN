@@ -166,3 +166,98 @@
 # import numpy as np
 # x = np.array([[1,2],[3,4]])
 # print(x[:, 0])
+
+# import numpy as np
+# import torch
+
+# # Suppose `array` is your NumPy array with shape (x, y)
+# array = np.random.rand(5, 10)  # Replace with your actual array
+
+# # Convert the NumPy array to a PyTorch tensor
+# tensor = torch.from_numpy(array)
+
+# print(tensor.shape)  #
+# import itertools
+
+# # Generate all combinations of numbers from 0 to 7
+# combinations = list(itertools.product(range(8), repeat=8))
+
+# # Print the combinations
+# for combo in combinations:
+#     print(combo)
+# import itertools
+
+# # Generate all possible combinations
+# combinations = [list(comb) for r in range(9) for comb in itertools.combinations(range(8), r)]
+
+# for comb in combinations:
+#     if 0 not in comb and 1 not in comb and 2 not in comb and 3 in comb and 7 not in comb:
+#         print(comb)
+
+
+# def midpoint_and_precision(num1, num2):
+#     """
+#     Calculate the midpoint between two numbers and determine the precision based on the number of decimal places.
+
+#     Parameters:
+#     num1 (int or float): The first number.
+#     num2 (int or float): The second number.
+
+#     Returns:
+#     tuple: A tuple containing the midpoint and the precision as an integer.
+#     """
+#     # Calculate midpoint
+#     midpoint = (num1 + num2) / 2
+
+#     # Convert midpoint to string to analyze decimal places
+#     midpoint_str = f"{midpoint:.10f}"  # Convert to string with up to 10 decimal places
+
+#     # Strip trailing zeros and split at the decimal point
+#     midpoint_str = midpoint_str.rstrip('0')
+#     if '.' in midpoint_str:
+#         precision = len(midpoint_str.split('.')[1])
+#     else:
+#         precision = 0  # No decimal places if no decimal point is present
+
+#     return midpoint, precision
+
+# # Example usage
+# result = midpoint_and_precision(3.145, 2.1)
+# print("Midpoint:", result[0], "Precision:", result[1])
+# import numpy as np
+# from PIL import Image
+# img = np.load('mnist/ref_digit/cinque_rp.npy')
+
+# print(img.dtype)
+# # Reshape the array to 2D and convert it to uint8
+# img = img.reshape(28, 28).astype(np.uint8)
+
+# # Convert the numpy array to an image
+# img = Image.fromarray(img)
+
+# # Save the image
+# img.save('mnist/ref_digit/save.png')
+import os, json
+import numpy as np
+import matplotlib.pyplot as plt
+
+DATASET = 'mnist/original_dataset/5-HQ/'
+content = os.listdir(DATASET)
+
+x_test = []
+for file in content:
+    if file.endswith('.json'):
+        with open(DATASET + file, 'r') as f:
+            params = json.load(f)
+            predictions = params["predictions"]
+            _ , second_cls = np.argsort(-np.array(predictions))[:2]
+            con = predictions[second_cls]
+            # print(con)
+            x_test.append(con)
+boxprops = dict(facecolor='lightgray', color='black', linewidth=1)
+plt.figure(figsize=(10, 2))
+plt.grid(True, alpha=0.25)
+plt.boxplot(x_test, vert=False, meanline=True, showmeans=True, patch_artist=True, boxprops=boxprops, zorder=3)
+plt.xlabel('Confidence of the second most probable class for the digit 5')
+plt.tight_layout()
+plt.savefig('mnist/hq-second_class_confidence.png')

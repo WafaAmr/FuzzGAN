@@ -6,21 +6,16 @@ import numpy as np
 import os
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import json
-from config import CACHE_DIR, STYLEGAN_INIT, SEARCH_LIMIT
+from config import INIT_PKL , STYLEGAN_INIT, SEARCH_LIMIT
 import os.path as osp
 from stylegan.renderer_v2 import Renderer
 import copy
 
 def generate_seed(state=None):
-    valid_checkpoints_dict = {
-    f.split('/')[-1].split('.')[0]: osp.join(CACHE_DIR, f)
-    for f in os.listdir(CACHE_DIR)
-    if (f.endswith('pkl') and osp.exists(osp.join(CACHE_DIR, f)))
-}
 
     Renderer(disable_timing=True)._render_impl(
         res = state['generator_params'],  # res
-        pkl = valid_checkpoints_dict[state['pretrained_weight']],  # pkl
+        pkl = INIT_PKL,  # pkl
         w0_seeds= state['params']['w0_seeds'],  # w0_seed,
         class_idx = state['params']['class_idx'],  # class_idx,
         mixclass_idx = state['params']['mixclass_idx'],  # mix_idx,
